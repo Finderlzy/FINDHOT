@@ -14,3 +14,6 @@ apps/web/.react-router/
 # Font package unpacked to regenerate the report nameplates (docs/customize.md)
 package/
 fontsource-noto-sans-sc-*.tgz
+
+# 本机的私有说明（服务器地址、部署结构），Claude Code 会自动读取，不提交
+CLAUDE.local.md
