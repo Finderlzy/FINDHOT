@@ -18,14 +18,14 @@ export const EDITION_WHEN = {
 
 export const SITE = {
   /** 站名：导航、页面标题、分享图、RSS、MCP、后台都用它。 */
-  name: "WorldHOT",
+  name: "FindHOT",
   /**
    * 行业词：拼进默认说法里，比如“AI 日报”“AI 动态”。
    * 改成“法律”“HR”“黄金”之类，页面上就会变成“法律日报”“法律动态”。
    */
   subject: "国际",
   /** 首页的完整标题（浏览器标签、搜索结果）。 */
-  homeTitle: "WorldHOT — 国际形势 · 每日精选与日报",
+  homeTitle: "FindHOT — 国际形势 · 每日精选与日报",
   /** 主题目录页（/topics）的标题。 */
   topicsTitle: "国际主题：国家与组织、地区与议题、内容形态的最新动态",
   /** 反馈表单输入框里的示例。 */
@@ -51,10 +51,10 @@ export const SITE = {
   /** 标准图标（favicon.ico、icon.png、icon-192.png、apple-icon.png、logo.svg）以外也放在网站根目录的图标，site/brand/ 里的文件名（选填）；manifest.webmanifest 或外站引用了它们时用。 */
   rootIcons: [] as string[],
   /**
-   * MCP 工具名的前缀（小写字母、数字、下划线），工具会叫 worldhot_get_latest、worldhot_search……
+   * MCP 工具名的前缀（小写字母、数字、下划线），工具会叫 findhot_get_latest、findhot_search……
    * 已经有人接入后就不要再改。
    */
-  mcpPrefix: "worldhot",
+  mcpPrefix: "findhot",
   /**
    * 公开接口（MCP、OpenAPI、llms.txt）的版本号，只升不降。
    * 改了接口里已有的字段或含义时升主版本，并在部署说明里写清。
@@ -70,12 +70,12 @@ export const SITE = {
   github: null as string | null,
   /** 结构化数据里的网站运营者（搜索引擎用）。 */
   organization: {
-    name: "WorldHOT",
+    name: "FindHOT",
     /** 创始人（选填）。 */
     founder: null as null | { name: string; alternateName?: string; jobTitle?: string; description?: string; url?: string },
   },
   /** 抓取信源时报上的名字和版本（User-Agent 里用），不要冒用别的站。 */
-  crawlerName: "WorldHOTBot/1.0",
+  crawlerName: "FindHOTBot/1.0",
 } as const;
 
 /** 使用规则和隐私说明两页（正文在 pages/ 里）。 */
