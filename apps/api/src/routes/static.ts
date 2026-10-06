@@ -43,8 +43,8 @@ function fillPlaceholders(text: string, json: boolean): string {
     tagline: SITE.tagline,
     locale: SITE.locale,
     dailyTime: EDITION_TIMES.daily,
-    weeklyTime: EDITION_TIMES.weekly,
-    monthlyTime: EDITION_TIMES.monthly,
+    eveningTime: EDITION_TIMES.evening,
+    specialTime: EDITION_TIMES.special,
     version: PUBLIC_INTERFACE_VERSION,
     categoryList: PUBLIC_API_CATEGORY_KEYS.join(", "),
   };

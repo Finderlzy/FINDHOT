@@ -20,14 +20,14 @@ import { chromium, webkit, expect, type Browser } from "@playwright/test";
 import type { FeedItemSummary, SiteItemDetail, ReportDetail } from "@aihot/contracts/site";
 
 const at = '2026-10-04T08:00:00.000Z';
-const item: FeedItemSummary = {id:'navigation-fixture',title:'性能检查文章',summary:'固定摘要',reason:'固定推荐理由',source:{name:'Fixture'},publishedAt:at,timelineAt:at,category:'ai-models',tags:[],score:80,selected:true,channel:'news',x:null};
+const item: FeedItemSummary = {id:'navigation-fixture',title:'性能检查文章',summary:'固定摘要',reason:'固定推荐理由',source:{name:'Fixture'},publishedAt:at,timelineAt:at,category:'diplomacy',tags:[],score:80,selected:true,channel:'news',x:null};
 const detail: SiteItemDetail = {...item,x:null,originalTitle:'Fixture article',links:{original:'https://example.org/article'},discoveredAt:at,story:null,readingMode:'full',author:null,body:{zh:'<p>固定正文</p>',original:null,zhKind:'translation',complete:true},outline:[],relatedStories:[],topics:[],indexable:true,markdownAvailable:true,group:null,hasTranslation:true,bodyLanguage:'zh'};
 const codeSource='import json\n\nwith open("data.json") as file:\n    data = json.load(file)\n\nfor record in data:\n    print(record["title"])\n';
 const readerBody=Array.from({length:30},(_,i)=>`<p>阅读段落 ${i}：先阅读文章，再查看后面的代码和图片。正文保持可读，图片和代码在需要时增强。</p>`).join('')
   +`<pre><code>${codeSource}</code></pre><pre><code>x = 1</code></pre>`
   +Array.from({length:12},(_,i)=>`<img src="/reader-image/${i}.svg" alt="正文配图 ${i}" width="640" height="360" loading="lazy">`).join('')
   +'<img src="/reader-image/tiny.svg" alt="小图标" width="16" height="16" loading="lazy"><a href="https://example.org"><img src="/reader-image/linked.svg" alt="链接图片" width="640" height="360" loading="lazy"></a>';
-const report = (kind:'daily'|'weekly'|'monthly'): ReportDetail => ({kind,key:kind==='daily'?'2026-10-04':kind==='weekly'?'2026-W40':'2026-10',issueNumber:1,title:'Fixture '+kind,generatedAt:at,lead:{title:'Fixture '+kind,leadParagraph:'Fixture report'},leadItemId:null,overview:null,highlights:[],sections:[],flashes:[],cover:null,metrics:{},readingMinutes:1,prev:null,next:null});
+const report = (kind:'daily'|'evening'|'special'): ReportDetail => ({kind,key:'2026-10-04',issueNumber:1,title:'Fixture '+kind,generatedAt:at,lead:{title:'Fixture '+kind,leadParagraph:'Fixture report'},leadItemId:null,overview:null,highlights:[],sections:[],flashes:[],cover:null,metrics:{},readingMinutes:1,prev:null,next:null});
 const hits: string[] = [];
 let suggestionsVersion=1;
 let failing='';
@@ -68,7 +68,7 @@ const api=createServer((req,res)=>{
   if(p==='/api/site/items/reader-fixture')return res.end(JSON.stringify({...detail,id:'reader-fixture',title:'阅读增强检查',body:{...detail.body,zh:readerBody}}));
   if(p==='/api/site/items/reader-fixture/original')return res.end(JSON.stringify({...detail,id:'reader-fixture',title:'阅读增强检查',body:{...detail.body,zh:null,original:'<p>Original reader text</p>'},bodyLanguage:'original'}));
   if(p.startsWith('/api/site/items/long-'))return res.end(JSON.stringify({...detail,id:p.split('/').at(-1),title:'长列表详情'}));
-  const kind=p.match(/^\/api\/site\/reports\/(daily|weekly|monthly)\/latest-page$/)?.[1] as 'daily'|'weekly'|'monthly'|undefined;
+  const kind=p.match(/^\/api\/site\/reports\/(daily|evening|special)\/latest-page$/)?.[1] as 'daily'|'evening'|'special'|undefined;
   if(kind){const r=report(kind);return res.end(JSON.stringify({report:r,index:[{key:r.key,issueNumber:1,title:r.title,count:0}]}));}
   res.statusCode=404;res.end(JSON.stringify({code:'not_found'}));
 });
@@ -111,14 +111,14 @@ for(const [engine,width] of [['chromium',1280],['webkit',390]] as const){
       await context.setOffline(false);
       if(width===390)await page.getByRole('button',{name:/^筛选/}).click();
       await page.getByRole('link',{name:'模型',exact:true}).click();
-      await expect(page.getByRole('link',{name:'分类 ai-models',exact:true})).toBeVisible();
+      await expect(page.getByRole('link',{name:'分类 diplomacy',exact:true})).toBeVisible();
       if(width===390)await page.getByRole('button',{name:/^筛选/}).click();
       await page.getByRole('link',{name:'产品',exact:true}).click();
       await expect(page.getByRole('link',{name:'分类 ai-products',exact:true})).toBeVisible();
       await context.setOffline(true);
       await page.goBack();
-      await expect(page.getByRole('link',{name:'分类 ai-models',exact:true})).toBeVisible({timeout:1500});
-      await expect(page.locator('link[rel=canonical]')).toHaveAttribute('href',origin+'/?category=ai-models');
+      await expect(page.getByRole('link',{name:'分类 diplomacy',exact:true})).toBeVisible({timeout:1500});
+      await expect(page.locator('link[rel=canonical]')).toHaveAttribute('href',origin+'/?category=diplomacy');
     }finally{await context.close();}
   });
 }
@@ -173,7 +173,7 @@ test('intent on a selected link preserves visited data and the next revisit star
   try{
     await page.goto(origin+'/');
     await page.getByRole('link',{name:'模型',exact:true}).click();
-    await expect(page.getByRole('link',{name:'分类 ai-models',exact:true})).toBeVisible();
+    await expect(page.getByRole('link',{name:'分类 diplomacy',exact:true})).toBeVisible();
     await page.getByRole('link',{name:'模型',exact:true}).focus();
     await page.waitForTimeout(150);
     await page.getByRole('link',{name:'产品',exact:true}).click();
@@ -182,7 +182,7 @@ test('intent on a selected link preserves visited data and the next revisit star
     await page.waitForTimeout(150);
     const before=requests.length;
     await page.getByRole('link',{name:'模型',exact:true}).click();
-    await expect(page.getByRole('link',{name:'分类 ai-models',exact:true})).toBeVisible();
+    await expect(page.getByRole('link',{name:'分类 diplomacy',exact:true})).toBeVisible();
     assert.deepEqual(requests.slice(before),[],'neither prefetch nor navigation may evict and reload a still-valid visited page');
   }finally{await context.close();}
 });

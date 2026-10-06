@@ -33,7 +33,7 @@ export function headers() {
 
 export default function DailyArchive() {
   const { index, today } = useLoaderData<typeof loader>();
-  const months = archiveGroups("daily", index);
+  const months = archiveGroups(index);
   return (
     <ReportLayout kind="daily" index={index} current={null} today={today} back={{ to: "/daily", label: "日报" }} title="日报合订本">
       <div className="@container">

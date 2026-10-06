@@ -163,8 +163,8 @@ export function siteLd() {
         { "@type": "DataDownload", name: "精选 RSS", encodingFormat: "application/rss+xml", contentUrl: `${base}/feed.xml` },
         { "@type": "DataDownload", name: "全部动态 RSS", encodingFormat: "application/rss+xml", contentUrl: `${base}/feed/all.xml` },
         { "@type": "DataDownload", name: `${withSubject("日报")} RSS`, encodingFormat: "application/rss+xml", contentUrl: `${base}/feed/daily.xml` },
-        { "@type": "DataDownload", name: `${withSubject("周报")} RSS`, encodingFormat: "application/rss+xml", contentUrl: `${base}/feed/weekly.xml` },
-        { "@type": "DataDownload", name: `${withSubject("月报")} RSS`, encodingFormat: "application/rss+xml", contentUrl: `${base}/feed/monthly.xml` },
+        { "@type": "DataDownload", name: `${withSubject("晚报")} RSS`, encodingFormat: "application/rss+xml", contentUrl: `${base}/feed/evening.xml` },
+        { "@type": "DataDownload", name: "专题报 RSS", encodingFormat: "application/rss+xml", contentUrl: `${base}/feed/special.xml` },
         { "@type": "DataDownload", name: "公开 API v1", encodingFormat: "application/json", contentUrl: `${base}/api/v1/items` },
         { "@type": "DataDownload", name: "OpenAPI", encodingFormat: "application/json", contentUrl: `${base}/openapi-v1.json` },
       ],
@@ -226,13 +226,13 @@ export function archiveLd(path: string, name: string, entries: Array<{ path: str
   };
 }
 
-const REPORT_NAME = { daily: "日报", weekly: "周报", monthly: "月报" } as const;
+const REPORT_NAME = { daily: "日报", evening: "晚报", special: "专题报" } as const;
 
 /** One report issue: an editorial round-up by the site (no personal byline), sections as its sections. */
 export function reportLd(r: ReportDetail, path: string, description: string) {
   return articleLd({
     path,
-    headline: `${SITE.name} ${REPORT_NAME[r.kind]} · ${r.key}`,
+    headline: r.kind === "special" ? r.title : `${SITE.name} ${REPORT_NAME[r.kind]} · ${r.key}`,
     description,
     publishedAt: r.generatedAt,
     section: r.sections.map((s) => s.label),

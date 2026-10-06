@@ -1,5 +1,5 @@
 // Production SSR with a local health stub. Failure cases: an access page describes daily reports
-// but omits weekly/monthly support; a report RSS card offers a schedule without saying it carries
+// but omits evening/special support; a report RSS card offers a schedule without saying it carries
 // that issue's contents; machine entry points exist but cannot be found from the access page.
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
@@ -53,22 +53,22 @@ async function page(tab: string) {
 test('the access page names every report cadence in its visible overview', async () => {
   const $ = await page('rss');
   const intro = $('h1').first().closest('header').find('p').first().text();
-  for (const label of ['日报', '周报', '月报']) assert.ok(intro.includes(label), `access overview omits ${label}: ${intro}`);
+  for (const label of ['日报', '晚报', '专题报']) assert.ok(intro.includes(label), `access overview omits ${label}: ${intro}`);
 });
 
 test('all report RSS cards tell readers the feed includes an issue contents list', async () => {
   const $ = await page('rss');
-  for (const kind of ['daily', 'weekly', 'monthly']) {
+  for (const kind of ['daily', 'evening', 'special']) {
     const address = $(`code`).filter((_, node) => $(node).text().endsWith(`/feed/${kind}.xml`));
     assert.equal(address.length, 1, `${kind} RSS must be discoverable`);
     const description = address.closest('.card').find('p').text();
-    assert.match(description, /目录|按栏目/, `${kind} RSS must describe its contents, not only its cadence`);
+    assert.match(description, /目录|按栏目|引用的报道/, `${kind} RSS must describe its contents, not only its cadence`);
   }
 });
 
 for (const [tab, names] of [
-  ['api', ['/api/v1/dailies/latest', '/api/v1/weeklies/latest', '/api/v1/monthlies/latest']],
-  ['mcp', [MCP_TOOL_NAMES.daily, MCP_TOOL_NAMES.weekly, MCP_TOOL_NAMES.monthly]],
+  ['api', ['/api/v1/dailies/latest', '/api/v1/evenings/latest', '/api/v1/specials/latest']],
+  ['mcp', [MCP_TOOL_NAMES.daily, MCP_TOOL_NAMES.evening, MCP_TOOL_NAMES.special]],
 ] as const) {
   test(`the ${tab} panel exposes all report entry points`, async () => {
     const $ = await page(tab);

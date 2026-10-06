@@ -1,0 +1,11 @@
+{
+  "name": "@aihot/cn-media",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./server": "./server.ts"
+  },
+  "dependencies": {
+    "@aihot/backend": "*"
+  }
+}

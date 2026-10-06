@@ -8,13 +8,13 @@ import { config } from "../config.ts";
 import { sql } from "../db.ts";
 import { escapeXml } from "../lib/text.ts";
 import { proxyBodyImages } from "../media/imgproxy.ts";
-import { feedIssues, type FeedIssue, type ReportKind } from "./reports.ts";
+import { feedIssues, REPORT_NAME, type FeedIssue, type ReportKind } from "./reports.ts";
 import { textToHtml } from "../content/sanitize.ts";
 import type { FeedNotice } from "../modules.ts";
 import { publicCategoryCondition, exportTranslation, xView, type ItemRow } from "./items.ts";
 import { publicSourceName } from "./rules.ts";
 import { listedCondition, seatedCondition } from "./scope.ts";
-import { dailyUrl, itemUrl, periodUrl, siteUrl } from "./links.ts";
+import { itemUrl, reportUrl, siteUrl } from "./links.ts";
 
 interface FeedMeta {
   id: string;
@@ -36,8 +36,8 @@ const FEEDS: FeedMeta[] = [
   { id: "selected-full", path: "/feed/full.xml", title: `${SITE.name} — 精选全文`, description: "与精选摘要相同的最新 50 条；仅对明确允许再分发的来源内联正文，其余仍提供摘要和阅读入口。", homePath: "/", pollHintMinutes: 30, ...CACHE },
   { id: "all", path: "/feed/all.xml", title: `${SITE.name} — ${subjectAfter("全部", "动态")}`, description: `最近 7 天公开动态，按真实发布时间倒序；不含${LEFT_OUT.slice(0, -1).join("、")}和${LEFT_OUT.at(-1)}。`, homePath: "/all", pollHintMinutes: 30, ...CACHE },
   { id: "daily", path: "/feed/daily.xml", title: `${SITE.name} 日报`, description: `${SITE.name} ${EDITION_WHEN.daily}（北京时间）发布的精编日报，保留最近 30 期。`, homePath: "/daily", pollHintMinutes: 30, ...CACHE },
-  { id: "weekly", path: "/feed/weekly.xml", title: `${SITE.name} 周报`, description: `${SITE.name} ${EDITION_WHEN.weekly}（北京时间）发布的周报：从上周每天的日报里选出的${REPORTS.entry.noun}，按栏目分好，附总述；保留最近 12 期。`, homePath: "/weekly", pollHintMinutes: 180, ...CACHE },
-  { id: "monthly", path: "/feed/monthly.xml", title: `${SITE.name} 月报`, description: `${SITE.name} ${EDITION_WHEN.monthly}（北京时间）发布的月报：从上个月每天的日报里选出的${REPORTS.entry.noun}，按栏目分好，附总述；保留最近 12 期。`, homePath: "/monthly", pollHintMinutes: 360, ...CACHE },
+  { id: "evening", path: "/feed/evening.xml", title: `${SITE.name} 晚报`, description: `${SITE.name} ${EDITION_WHEN.evening}（北京时间）发布的晚报：当天日报出刊以后到晚上的${REPORTS.entry.noun}，按栏目分好；保留最近 30 期。`, homePath: "/evening", pollHintMinutes: 30, ...CACHE },
+  { id: "special", path: "/feed/special.xml", title: `${SITE.name} 专题报`, description: `${SITE.name} ${EDITION_WHEN.special}（北京时间）发布的专题报：一期讲一个国家或地区，附导语和每章引用的报道；保留最近 12 期。`, homePath: "/special", pollHintMinutes: 180, ...CACHE },
 ];
 
 /** A feed by its id; a category feed shares the poll hint and caching of the feed it narrows. */
@@ -188,14 +188,13 @@ export async function itemFeed(kind: ItemFeedKind, category: PublicApiCategoryKe
   return channel(meta, items);
 }
 
-const ISSUE_NAME: Record<ReportKind, string> = { daily: "日报", weekly: "周报", monthly: "月报" };
-/** Issues each report feed keeps: a month of dailies, a quarter of weeklies, a year of monthlies. */
-const ISSUES_KEPT: Record<ReportKind, number> = { daily: 30, weekly: 12, monthly: 12 };
+/** Issues each report feed keeps: a month of dailies and of evenings, six weeks of specials. */
+const ISSUES_KEPT: Record<ReportKind, number> = { daily: 30, evening: 30, special: 12 };
 
-/** One issue: its headline, its lead (a weekly's or monthly's overview) and its contents, each entry linking to its page. */
+/** One issue: its headline, its lead (a special's dek) and its contents, each entry linking to its page. */
 function issueXml(kind: ReportKind, r: FeedIssue): string {
-  const url = kind === "daily" ? dailyUrl(r.key) : periodUrl(kind, r.key);
-  const name = `${SITE.name} ${ISSUE_NAME[kind]}`;
+  const url = reportUrl(kind, r.key);
+  const name = `${SITE.name} ${REPORT_NAME[kind]}`;
   const title = r.headline ? `${name} · ${r.key} — ${r.headline}` : `${name} · ${r.key}`;
   const contents = r.sections.map((s) => `<p><strong>${escapeXml(s.label)}</strong></p>\n<ul>${s.items.map((i) => `<li><a href="${escapeXml(i.link)}">${escapeXml(i.title)}</a></li>`).join("")}</ul>`);
   const description = [`<p>${escapeXml(r.leadParagraph ?? r.headline ?? "")}</p>`, ...contents, `<p>via ${escapeXml(SITE.name)} · <a href="${url}">${url}</a></p>`].join("\n");
@@ -209,7 +208,7 @@ function issueXml(kind: ReportKind, r: FeedIssue): string {
     </item>`;
 }
 
-/** The daily, weekly or monthly feed: one item per issue, newest first. */
+/** The daily, evening or special feed: one item per issue, newest first. */
 export async function reportFeed(kind: ReportKind, notice?: NoticeFor): Promise<string> {
   const m = feedMeta(kind);
   const meta = { title: m.title, description: m.description, homePath: m.homePath, selfPath: m.path, ttl: m.pollHintMinutes };

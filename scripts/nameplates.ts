@@ -33,13 +33,13 @@ const NAMEPLATES: Record<string, Array<{ text: string; accent: boolean }>> = {
     { text: S, accent: true },
     { text: "日报", accent: false },
   ],
-  weekly: [
+  evening: [
     { text: S, accent: true },
-    { text: "周报", accent: false },
+    { text: "晚报", accent: false },
   ],
-  monthly: [
-    { text: S, accent: true },
-    { text: "月报", accent: false },
+  special: [
+    { text: "专题", accent: true },
+    { text: "报", accent: false },
   ],
   archive: [
     { text: "日报", accent: false },

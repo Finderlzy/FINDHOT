@@ -4,7 +4,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { CATEGORY_LABELS } from "@aihot/contracts/taxonomy";
 import { beijingDate } from "@aihot/contracts/time";
 import { loadItemOgCard, loadItemShare } from "@aihot/backend/publication/og";
-import { loadReport, type ReportKind } from "@aihot/backend/publication/reports";
+import { isReportKind } from "@aihot/contracts/site";
+import { loadReport, REPORT_NAME } from "@aihot/backend/publication/reports";
 import { findTopic, TOPIC_GROUPS, TOPICS } from "@aihot/backend/publication/topics";
 import { loadStoryDetail, resolveStory } from "@aihot/backend/publication/stories";
 import { ogEtag, renderOg, type OgCard } from "@aihot/backend/media/og";
@@ -35,7 +36,6 @@ function notFound(reply: FastifyReply) {
   return reply.code(404).header("Cache-Control", "public, max-age=300").type("text/plain; charset=utf-8").send("Not found");
 }
 
-const REPORT_NAMES: Record<ReportKind, string> = { daily: withSubject("日报"), weekly: withSubject("周报"), monthly: withSubject("月报") };
 
 export function registerOg(app: FastifyInstance) {
   app.get("/og/site.png", (req, reply) => send(req, reply, PAGES.site!, 86400));
@@ -78,14 +78,16 @@ export function registerOg(app: FastifyInstance) {
 
   app.get("/og/reports/:kind/:file", async (req, reply) => {
     const { kind, file } = req.params as { kind: string; file: string };
-    if (!["daily", "weekly", "monthly"].includes(kind) || !file.endsWith(".png")) return notFound(reply);
-    const r = await loadReport(kind as ReportKind, file.slice(0, -4));
+    if (!isReportKind(kind) || !file.endsWith(".png")) return notFound(reply);
+    const r = await loadReport(kind, file.slice(0, -4));
     if (!r) return notFound(reply);
     return send(req, reply, {
-      kicker: `${REPORT_NAMES[r.kind]} · ${r.key}`,
+      kicker: r.topic ? `专题报 · ${r.topic.name}` : `${withSubject(REPORT_NAME[r.kind])} · ${r.key}`,
       title: r.lead?.title ?? r.title,
       subtitle: r.lead?.leadParagraph ?? r.overview,
-      meta: `${r.sections.reduce((n, s) => n + s.items.length, 0)} ${REPORTS.shareUnit} · 约 ${r.readingMinutes} 分钟读完`,
+      meta: r.kind === "special"
+        ? `${r.metrics.reportsCited ?? 0} ${REPORTS.metricUnits.reportsCited} · 约 ${r.readingMinutes} 分钟读完`
+        : `${r.sections.reduce((n, s) => n + s.items.length, 0)} ${REPORTS.shareUnit} · 约 ${r.readingMinutes} 分钟读完`,
     }, 3600, CONTENT_IMAGE_CACHE);
   });
 

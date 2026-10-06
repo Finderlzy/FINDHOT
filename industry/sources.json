@@ -216,6 +216,100 @@
       ],
       "site_fulltext": false,
       "syndicate_fulltext": false
+    },
+    {
+      "id": "json-huanqiu-world",
+      "name": "环球网（国际频道）",
+      "kind": "json_list",
+      "config": {
+        "url": "https://world.huanqiu.com/api/list?node=%22/e3pmh22ph/e3pmh2398%22,%22/e3pmh22ph/e3pmh26vv%22,%22/e3pmh22ph/e3pn6efsl%22,%22/e3pmh22ph/efp8fqe21%22&offset=0&limit=24",
+        "mode": "json_api",
+        "itemsPath": "list",
+        "titlePaths": [
+          "title"
+        ],
+        "summaryPaths": [
+          "summary"
+        ],
+        "publishedAtPath": "xtime",
+        "publishedAtUnit": "epoch_ms",
+        "externalIdPath": "aid",
+        "urlTemplate": "https://world.huanqiu.com/article/{aid}",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 30,
+      "tags": [
+        "媒体",
+        "中文"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "json-ckxx-gj",
+      "name": "参考消息（国际）",
+      "kind": "json_list",
+      "config": {
+        "url": "https://www.cankaoxiaoxi.com/json/channel/gj/list.json",
+        "mode": "json_api",
+        "itemsPath": "list",
+        "titlePaths": [
+          "data.title"
+        ],
+        "summaryPaths": [
+          "data.description"
+        ],
+        "publishedAtPath": "data.publishTime",
+        "externalIdPath": "data.id",
+        "urlTemplate": "{raw:data.url}",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 30,
+      "tags": [
+        "媒体",
+        "中文"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "json-ckxx-junshi",
+      "name": "参考消息（军事）",
+      "kind": "json_list",
+      "config": {
+        "url": "https://www.cankaoxiaoxi.com/json/channel/junshi/list.json",
+        "mode": "json_api",
+        "itemsPath": "list",
+        "titlePaths": [
+          "data.title"
+        ],
+        "summaryPaths": [
+          "data.description"
+        ],
+        "publishedAtPath": "data.publishTime",
+        "externalIdPath": "data.id",
+        "urlTemplate": "{raw:data.url}",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "媒体",
+        "中文"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
     }
   ]
 }

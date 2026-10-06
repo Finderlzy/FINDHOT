@@ -65,7 +65,7 @@ test('a previously unseen, undated tail cannot become selected news, heat, a rep
     const res=await app.inject({method:'GET',url});assert.equal(res.statusCode,200,url);assert.ok(!res.body.includes(a!.id),url);
   }
   assert.equal((await app.inject({method:'GET',url:`/api/site/items/${a!.id}`})).statusCode,200,'the material remains readable');
-  const edition=await dailyEdition('2026-10-04',new Date(Date.now()-86400000),new Date(Date.now()+1000));
+  const edition=await dailyEdition('daily','2026-10-04',new Date(Date.now()-86400000),new Date(Date.now()+1000));
   assert.ok(!edition.entries.some(e=>e.entry.itemId===a!.id));
   assert.equal((await selectedContent(a!.id)).status,'skipped');
   await sql`UPDATE publications SET selected=true,backfill=false WHERE article_id=${a!.id}`;

@@ -1,11 +1,11 @@
-// What an issue carries. A period carries its selected reports: public, not backfill, attributed by
-// the later of arrival and release, and not released long after they happened. The daily is computed
-// by rule, without a model judging anything: one entry per event, its most authoritative report with
-// the event's other developments listed under it; an event an earlier issue covered comes back only
-// with a new fact; an event with an official post and three or more independent participants is
-// carried even when none of its reports was selected; entries rank by importance (score, the day's
-// independent participants, first-hand), and the first one leads. Sections are the industry pack's
-// (industry/taxonomy.ts CATEGORIES).
+// What an issue carries. A window carries its selected reports: public, not backfill, attributed by
+// the later of arrival and release, and not released long after they happened. A daily and an evening
+// (each half a day) are computed by rule, without a model judging anything: one entry per event, its
+// most authoritative report with the event's other developments listed under it; an event an earlier
+// issue covered comes back only with a new fact; an event with an official post and three or more
+// independent participants is carried even when none of its reports was selected; entries rank by
+// importance (score, the window's independent participants, first-hand), and the first one leads.
+// Sections are the industry pack's (industry/taxonomy.ts CATEGORIES).
 import { addDays } from "@aihot/contracts/time";
 import { CATEGORIES } from "@aihot/industry/taxonomy";
 import { sql } from "../db.ts";
@@ -13,6 +13,7 @@ import { currentSignals } from "../events/hot.ts";
 import { pickRepresentative, representativePriority, REPRESENTATIVE_COLUMNS, type RepresentativeIdentity } from "../publication/representative.ts";
 import { factSources } from "../publication/coverage.ts";
 import { evidenceCondition, listedCondition, ownFactEvidenceCondition } from "../publication/scope.ts";
+import { inTopic, type Topic } from "../publication/topics.ts";
 
 /** Each category's section; several categories may share one, in the order the pack lists them. */
 export const SECTION_OF: Record<string, string> = Object.fromEntries(CATEGORIES.map((c) => [c.key, c.section]));
@@ -21,16 +22,16 @@ export const SECTION_ORDER: readonly string[] = [...new Set(CATEGORIES.map((c) =
 const DEFAULT_SECTION = SECTION_OF.industry ?? SECTION_ORDER.at(-1)!;
 export const sectionOf = (category: string | null) => SECTION_OF[category ?? ""] ?? DEFAULT_SECTION;
 
-/** A daily's size: the entries readers get in full, and the one-line flashes after them. */
+/** A daily's or evening's size: the entries readers get in full, and the one-line flashes after them. */
 export const MAIN_ENTRIES = 12;
 export const FLASH_ENTRIES = 10;
-/** No source fills a daily: at most this many main entries lead with the same source. */
+/** No source fills an issue: at most this many main entries lead with the same source. */
 const PER_SOURCE = 2;
 /** A follow-up of a covered event takes a full entry when this many sources carry its new facts. */
 const FOLLOW_UP_SOURCES = 4;
 /** The pack's `commentary` categories (how-tos, opinions): a follow-up of theirs is a flash, whoever wrote it. */
 const COMMENTARY = new Set<string>(CATEGORIES.filter((c) => "commentary" in c).map((c) => c.key));
-/** Earlier issues a daily remembers. */
+/** The days of earlier issues (dailies and evenings) an issue remembers. */
 const MEMORY_DAYS = 7;
 
 export interface ReportEntry {
@@ -56,12 +57,15 @@ export interface Candidate extends ReportEntry {
 /** Another development of an entry's event, or a report of the launch it was merged with. */
 export type RelatedReport = Pick<ReportEntry, "itemId" | "factId" | "storyPublicId" | "title" | "sourceName" | "sourceUrl" | "sourceId">;
 
-/** One event of a daily as stored. */
+/** The two half-day kinds, which share one shape and remember each other. */
+export type EditionKind = "daily" | "evening";
+
+/** One event of a daily or evening as stored. */
 export interface DailyEntry extends ReportEntry {
   /** Sources that reported the event by the cutoff, this one included. */
   sources: number;
   related?: RelatedReport[];
-  /** The latest earlier issue that covered this event. */
+  /** The date of the latest earlier issue that covered this event. */
   followUp?: string;
   /** Carried for its official post and independent coverage, though none of its reports was selected. */
   fillIn?: true;
@@ -83,7 +87,7 @@ export interface EditionEntry {
   previous: { key: string; title: string } | null;
 }
 
-type ReportRow = RepresentativeIdentity & {
+export type ReportRow = RepresentativeIdentity & {
   id: string; title: string; summary: string | null; url: string; category: string | null; tags: string[]; score: number | null;
   first_party: boolean; body_mode: "full" | "summary"; timeline_at: Date;
   source_id: string; source_name: string; source_kind: string;
@@ -120,6 +124,17 @@ export async function periodReports(start: Date, end: Date): Promise<ReportRow[]
   });
 }
 
+/** A topic's selected reports that happened in [start, end): what a special is chosen and written from. */
+export async function topicReports(topic: Topic, start: Date, end: Date): Promise<ReportRow[]> {
+  return sql<ReportRow[]>`
+    SELECT ${REPORT_FIELDS}
+    FROM publications p JOIN sources s ON s.id = p.source_id
+    LEFT JOIN facts f ON f.id = p.fact_id AND ${ownFactEvidenceCondition()}
+    LEFT JOIN stories st ON st.id = f.story_id
+    WHERE p.visibility = 'public' AND p.selected AND NOT p.backfill AND p.visible_after < ${end}
+      AND p.timeline_at >= ${start} AND p.timeline_at < ${end} AND ${inTopic(topic)}`;
+}
+
 function roleOf(kind: string, official: boolean): string {
   if (official) return kind === "x_search" ? "X·官方" : "官方";
   if (kind === "x_search") return "X·KOL";
@@ -127,7 +142,7 @@ function roleOf(kind: string, official: boolean): string {
   return "媒体";
 }
 
-function reportEntry(r: ReportRow): ReportEntry {
+export function reportEntry(r: ReportRow): ReportEntry {
   return {
     itemId: r.id, factId: r.fact_public_id, storyPublicId: r.story_public_id, title: r.title, summary: r.summary ?? "",
     sourceName: r.source_name, sourceUrl: r.url, sourceId: r.source_id, firstParty: r.first_party,
@@ -139,15 +154,15 @@ const asRelated = (e: ReportEntry): RelatedReport => ({
   itemId: e.itemId, factId: e.factId, storyPublicId: e.storyPublicId, title: e.title, sourceName: e.sourceName, sourceUrl: e.sourceUrl, sourceId: e.sourceId,
 });
 
-const factKeyOf = (r: ReportRow) => r.fact_public_id ?? `a:${r.id}`;
+export const factKeyOf = (r: ReportRow) => r.fact_public_id ?? `a:${r.id}`;
 
-function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
+export function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
   const out = new Map<string, T[]>();
   for (const row of rows) out.set(key(row), [...(out.get(key(row)) ?? []), row]);
   return out;
 }
 
-/** A weekly's or monthly's candidates: each fact once, by its representative, best scored first. */
+/** A window's candidates: each fact once, by its representative, best scored first. */
 export async function candidates(start: Date, end: Date): Promise<Candidate[]> {
   const rows = await periodReports(start, end);
   return [...groupBy(rows, factKeyOf)]
@@ -158,70 +173,37 @@ export async function candidates(start: Date, end: Date): Promise<Candidate[]> {
     .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 }
 
-/**
- * A weekly's or monthly's candidates, compiled from the dailies dated startDate…endDate: each event
- * once, by its most reported entry (then the first day's, the original news, then the most
- * authoritative) in the reports' current public wording, ranked by how the dailies treated it (lead,
- * highlight, the days it was carried), its coverage and its best score. Reports withdrawn since drop out.
- */
-export async function periodEntries(startDate: string, endDate: string): Promise<{ entries: Candidate[]; issues: number }> {
-  const issues = await sql<{ key: string; content: Record<string, any> }[]>`
-    SELECT key, content FROM reports WHERE kind = 'daily' AND key >= ${startDate} AND key <= ${endDate} ORDER BY key`;
-  const carried = issues.flatMap((issue) => (issue.content.sections ?? []).flatMap((s: any) => (s.items ?? []).filter((it: any) => it.itemId).map((it: any) => ({
-    id: String(it.itemId),
-    key: issue.key,
-    sources: Number(it.sources) || 1,
-    lead: issue.content.leadItemId === it.itemId,
-    highlight: (issue.content.highlights ?? []).includes(it.itemId),
-  }))));
-  if (carried.length === 0) return { entries: [], issues: issues.length };
-  const rows = await sql<ReportRow[]>`
-    SELECT ${REPORT_FIELDS}
-    FROM publications p JOIN sources s ON s.id = p.source_id
-    LEFT JOIN facts f ON f.id = p.fact_id AND ${ownFactEvidenceCondition()}
-    LEFT JOIN stories st ON st.id = f.story_id
-    WHERE p.article_id = ANY(${[...new Set(carried.map((c) => c.id))]}::text[]) AND p.visibility = 'public' AND p.eligible`;
-  const byId = new Map(rows.map((r) => [r.id, r]));
-  const events = groupBy(carried.filter((c) => byId.has(c.id)), (c) => {
-    const r = byId.get(c.id)!;
-    return r.story_id === null ? `a:${r.id}` : `s:${r.story_id}`;
-  });
-  const ranked = [...events.values()].map((cs) => {
-    const authority = (c: { id: string }) => representativePriority(byId.get(c.id)!);
-    const main = byId.get([...cs].sort((a, b) => b.sources - a.sources || a.key.localeCompare(b.key) || authority(a) - authority(b))[0]!.id)!;
-    const rank = Math.max(...cs.map((c) => byId.get(c.id)!.score ?? 0)) + 5 * Math.log2(1 + Math.max(...cs.map((c) => c.sources)))
-      + (cs.some((c) => c.lead) ? 6 : 0) + (cs.some((c) => c.highlight) ? 3 : 0) + 4 * (new Set(cs.map((c) => c.key)).size - 1);
-    return { candidate: { ...reportEntry(main), category: main.category, factKey: factKeyOf(main) }, rank };
-  });
-  ranked.sort((a, b) => b.rank - a.rank || a.candidate.itemId.localeCompare(b.candidate.itemId));
-  return { entries: ranked.map((r) => r.candidate), issues: issues.length };
-}
-
 /** Every report an issue cites: its entries, what is listed under them, its flashes. */
 export function citedIn(content: Record<string, any>): Array<Record<string, any>> {
   const entries = [...(content.sections ?? []).flatMap((s: any) => s.items ?? []), ...(content.flashes ?? [])];
   return [...entries, ...entries.flatMap((e: any) => e.related ?? [])];
 }
 
+/** An issue's place in the series of dailies and evenings: by date, the daily before that day's evening. */
+const editionOrder = (kind: EditionKind, key: string) => `${key}${kind === "evening" ? "b" : "a"}`;
+
 /**
- * What the issues of the week before `date` carried: their facts and reports, which are not repeated,
- * and their events with the latest issue and headline that covered each. Facts and events are also
- * read from the cited reports' current grouping, so a later merge or regrouping still counts.
+ * What the dailies and evenings of the week before this issue carried: their facts and reports, which are
+ * not repeated, and their events with the latest issue and headline that covered each. Facts and events
+ * are also read from the cited reports' current grouping, so a later merge or regrouping still counts.
  */
-export async function dailyMemory(date: string): Promise<{ keys: Set<string>; stories: Map<number, { key: string; title: string }> }> {
-  const issues = await sql<{ key: string; content: Record<string, any> }[]>`
-    SELECT key, content FROM reports WHERE kind = 'daily' AND key < ${date} AND key >= ${addDays(date, -MEMORY_DAYS)} ORDER BY key DESC`;
+export async function dailyMemory(kind: EditionKind, date: string): Promise<{ keys: Set<string>; stories: Map<number, { key: string; title: string }> }> {
+  const issues = (await sql<{ kind: EditionKind; key: string; content: Record<string, any> }[]>`
+    SELECT kind, key, content FROM reports WHERE kind IN ('daily', 'evening') AND key <= ${date} AND key >= ${addDays(date, -MEMORY_DAYS)}`)
+    .map((issue) => ({ ...issue, order: editionOrder(issue.kind, issue.key) }))
+    .filter((issue) => issue.order < editionOrder(kind, date))
+    .sort((a, b) => b.order.localeCompare(a.order));
   const keys = new Set<string>();
-  const cited = new Map<string, { key: string; title: string }>();
+  const cited = new Map<string, { key: string; order: string; title: string }>();
   for (const issue of issues) {
     for (const it of citedIn(issue.content)) {
       if (it.factId) keys.add(String(it.factId));
       if (!it.itemId) continue;
       keys.add(`a:${it.itemId}`);
-      if (!cited.has(it.itemId)) cited.set(it.itemId, { key: issue.key, title: String(it.title ?? "") });
+      if (!cited.has(it.itemId)) cited.set(it.itemId, { key: issue.key, order: issue.order, title: String(it.title ?? "") });
     }
   }
-  const stories = new Map<number, { key: string; title: string }>();
+  const stories = new Map<number, { key: string; order: string; title: string }>();
   if (cited.size === 0) return { keys, stories };
   const current = await sql<{ id: string; fact_public_id: string | null; story_id: number | null }[]>`
     SELECT p.article_id AS id, f.public_id AS fact_public_id, f.story_id FROM publications p
@@ -232,7 +214,7 @@ export async function dailyMemory(date: string): Promise<{ keys: Set<string>; st
     if (c.story_id === null) continue;
     const at = cited.get(c.id)!;
     const seen = stories.get(c.story_id);
-    if (!seen || seen.key < at.key) stories.set(c.story_id, at);
+    if (!seen || seen.order < at.order) stories.set(c.story_id, at);
   }
   return { keys, stories };
 }
@@ -273,7 +255,7 @@ async function missedFacts(start: Date, end: Date): Promise<Array<{ key: string;
 }
 
 /**
- * How much an event matters to a reader of the day: the best score among its selected reports, its
+ * How much an event matters to a reader of the issue: the best score among its selected reports, its
  * heat as the independent participants who discussed it within the issue's window (as the hot list
  * counts them: 1 → 5, 3 → 10, 7 → 15, 15 → 20), a first-hand post, and less for an event an earlier
  * issue already covered.
@@ -285,11 +267,11 @@ function importance(e: { score: number | null; participants: number; official: b
 interface Fact { key: string; rows: ReportRow[]; selected: boolean; sources: string[]; at: number }
 
 /**
- * The daily's events for the window [start, end), most important first, before the editors' pass:
- * selected reports and missed facts, minus what the week's issues already carried, one entry per event.
+ * A daily's or evening's events for the window [start, end), most important first, before the editors'
+ * pass: selected reports and missed facts, minus what the week's issues already carried, one entry per event.
  */
-export async function dailyEdition(date: string, start: Date, end: Date): Promise<{ entries: EditionEntry[]; stats: Record<string, number> }> {
-  const [memory, selected, missed] = await Promise.all([dailyMemory(date), periodReports(start, end), missedFacts(start, end)]);
+export async function dailyEdition(kind: EditionKind, date: string, start: Date, end: Date): Promise<{ entries: EditionEntry[]; stats: Record<string, number> }> {
+  const [memory, selected, missed] = await Promise.all([dailyMemory(kind, date), periodReports(start, end), missedFacts(start, end)]);
   const raw = [
     ...[...groupBy(selected, factKeyOf)].map(([key, rows]) => ({ key, rows, selected: true })),
     ...missed.map((m) => ({ ...m, selected: false })),

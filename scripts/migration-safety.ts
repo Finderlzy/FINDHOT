@@ -97,6 +97,9 @@ export function migrationPlan(text: string): MigrationPlan {
   // the wait for its lock. One table and no CASCADE, so an object that still depends on it fails the
   // migration instead of disappearing with it. Whether its data may go is settled before the change.
   if (new RegExp(`^drop table if exists ${RELATION}$`, "i").test(sql)) return { kind: "transaction" };
+  // Dropping a constraint (a CHECK whose allowed values change) is a catalog change too: nothing is
+  // scanned or rewritten. Without CASCADE, a foreign key that still needs a dropped key stops it.
+  if (new RegExp(`^alter table ${RELATION} drop constraint if exists ${IDENT}$`, "i").test(sql)) return { kind: "transaction" };
   if (!singleAction(tokens)) throw new Error("use one ALTER TABLE action per statement");
   if (addColumn.test(sql)) {
     if (/\bnot null\b/i.test(words) && (!/\bdefault\b/i.test(words) || /\bdefault null\b/i.test(words))) throw new Error("NOT NULL on a new column requires a non-null constant default");
@@ -104,5 +107,5 @@ export function migrationPlan(text: string): MigrationPlan {
   }
   if (alterDefault.test(sql)) return { kind: "transaction" };
   if (new RegExp(`^alter table ${RELATION} add constraint ${IDENT} (?:check \\(.*\\)|foreign key \\(.*\\) references .*) not valid$`, "i").test(sql)) return { kind: "transaction" };
-  throw new Error(`not safe for an online migration: ${sql.slice(0, 180)}. Use constant-default columns, NOT VALID then separate validation, concurrent indexes, column MCV statistics with separate column ANALYZE, or DROP TABLE IF EXISTS for one table nothing uses; backfill data in bounded batches outside release migrations.`);
+  throw new Error(`not safe for an online migration: ${sql.slice(0, 180)}. Use constant-default columns, NOT VALID then separate validation, concurrent indexes, column MCV statistics with separate column ANALYZE, DROP TABLE IF EXISTS for one table nothing uses, or DROP CONSTRAINT IF EXISTS without CASCADE; backfill data in bounded batches outside release migrations.`);
 }

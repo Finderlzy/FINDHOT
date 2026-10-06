@@ -4,10 +4,10 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { PUBLIC_API_CATEGORY_KEYS, type PublicApiCategoryKey } from "@aihot/contracts/taxonomy";
 import { isValidDate } from "@aihot/contracts/time";
-import { agentGuide, dailyAnswer, hotAnswer, latestAnswer, periodAnswer, searchAnswer, searchItems, storyAnswer } from "@aihot/backend/publication/agent";
+import { agentGuide, dailyAnswer, hotAnswer, latestAnswer, specialAnswer, searchAnswer, searchItems, storyAnswer } from "@aihot/backend/publication/agent";
 import { v1Items } from "@aihot/backend/publication/v1";
 import { resolveStory, v1HotTopics, v1Story } from "@aihot/backend/publication/stories";
-import { dailyWithNotes, isPeriodKey, v1Period } from "@aihot/backend/publication/reports";
+import { dailyWithNotes, v1Special } from "@aihot/backend/publication/reports";
 import { requestNotice, serverModules } from "@aihot/backend/modules";
 import { QueryError, sendProblem, sendTextWithEtag, strictQuery } from "../http/respond.ts";
 import { enumParam, intParam, publicHandler, V1_OPERATIONS } from "./v1.ts";
@@ -67,41 +67,40 @@ export function registerAgent(app: FastifyInstance) {
     return markdown(req, reply, storyAnswer(body.story, limit, "http"), "agent-story", V1_OPERATIONS.storyByPublicId.cacheControl);
   }));
 
-  app.get("/api/v1/agent/daily", publicHandler(async (req, reply) => {
-    strictQuery(req, []);
-    const res = await dailyWithNotes("latest");
-    if (!res) return sendProblem(req, reply, { status: 404, code: "not_found", detail: "还没有发布过日报。" });
-    return markdown(req, reply, dailyAnswer(res.body.report, "http", res.notes), "agent-daily", V1_OPERATIONS.latestDaily.cacheControl);
-  }));
-
-  app.get("/api/v1/agent/daily/:date", publicHandler(async (req, reply) => {
-    strictQuery(req, []);
-    const date = (req.params as { date: string }).date;
-    if (!isValidDate(date)) throw new QueryError("date must be a real YYYY-MM-DD calendar date.");
-    const res = await dailyWithNotes(date);
-    if (!res) return sendProblem(req, reply, { status: 404, code: "not_found", detail: `没有 ${date} 的日报；不要换一天冒充。`, cacheControl: "public, max-age=60" });
-    return markdown(req, reply, dailyAnswer(res.body.report, "http", res.notes), "agent-daily", V1_OPERATIONS.dailyByDate.cacheControl);
-  }));
-
   for (const p of [
-    { kind: "weekly", name: "周报", param: "week", form: "a real ISO week such as 2026-W39", latest: V1_OPERATIONS.latestWeekly.cacheControl, byKey: V1_OPERATIONS.weeklyByWeek.cacheControl },
-    { kind: "monthly", name: "月报", param: "month", form: "a real month such as 2026-09", latest: V1_OPERATIONS.latestMonthly.cacheControl, byKey: V1_OPERATIONS.monthlyByMonth.cacheControl },
+    { kind: "daily", name: "日报", latest: V1_OPERATIONS.latestDaily.cacheControl, byDate: V1_OPERATIONS.dailyByDate.cacheControl },
+    { kind: "evening", name: "晚报", latest: V1_OPERATIONS.latestEvening.cacheControl, byDate: V1_OPERATIONS.eveningByDate.cacheControl },
   ] as const) {
     app.get(`/api/v1/agent/${p.kind}`, publicHandler(async (req, reply) => {
       strictQuery(req, []);
-      const body = await v1Period(p.kind, "latest");
-      if (!body) return sendProblem(req, reply, { status: 404, code: "not_found", detail: `还没有发布过${p.name}。` });
-      return markdown(req, reply, periodAnswer(body.report, p.kind, "http"), `agent-${p.kind}`, p.latest);
+      const res = await dailyWithNotes(p.kind, "latest");
+      if (!res) return sendProblem(req, reply, { status: 404, code: "not_found", detail: `还没有发布过${p.name}。` });
+      return markdown(req, reply, dailyAnswer(res.body.report, "http", res.notes, p.kind), `agent-${p.kind}`, p.latest);
     }));
-    app.get(`/api/v1/agent/${p.kind}/:${p.param}`, publicHandler(async (req, reply) => {
+    app.get(`/api/v1/agent/${p.kind}/:date`, publicHandler(async (req, reply) => {
       strictQuery(req, []);
-      const key = (req.params as Record<string, string>)[p.param]!;
-      if (!isPeriodKey(p.kind, key)) throw new QueryError(`${p.param} must be ${p.form}.`);
-      const body = await v1Period(p.kind, key);
-      if (!body) return sendProblem(req, reply, { status: 404, code: "not_found", detail: `没有 ${key} 的${p.name}；不要换一期冒充。`, cacheControl: "public, max-age=60" });
-      return markdown(req, reply, periodAnswer(body.report, p.kind, "http"), `agent-${p.kind}`, p.byKey);
+      const date = (req.params as { date: string }).date;
+      if (!isValidDate(date)) throw new QueryError("date must be a real YYYY-MM-DD calendar date.");
+      const res = await dailyWithNotes(p.kind, date);
+      if (!res) return sendProblem(req, reply, { status: 404, code: "not_found", detail: `没有 ${date} 的${p.name}；不要换一天冒充。`, cacheControl: "public, max-age=60" });
+      return markdown(req, reply, dailyAnswer(res.body.report, "http", res.notes, p.kind), `agent-${p.kind}`, p.byDate);
     }));
   }
+
+  app.get("/api/v1/agent/special", publicHandler(async (req, reply) => {
+    strictQuery(req, []);
+    const body = await v1Special("latest");
+    if (!body) return sendProblem(req, reply, { status: 404, code: "not_found", detail: "还没有发布过专题报。" });
+    return markdown(req, reply, specialAnswer(body.report, "http"), "agent-special", V1_OPERATIONS.latestSpecial.cacheControl);
+  }));
+  app.get("/api/v1/agent/special/:date", publicHandler(async (req, reply) => {
+    strictQuery(req, []);
+    const date = (req.params as { date: string }).date;
+    if (!isValidDate(date)) throw new QueryError("date must be a real YYYY-MM-DD calendar date.");
+    const body = await v1Special(date);
+    if (!body) return sendProblem(req, reply, { status: 404, code: "not_found", detail: `没有 ${date} 出刊的专题报；不要换一期冒充。`, cacheControl: "public, max-age=60" });
+    return markdown(req, reply, specialAnswer(body.report, "http"), "agent-special", V1_OPERATIONS.specialByDate.cacheControl);
+  }));
   // The modules' abilities, each answered at its own address.
   for (const ability of serverModules().flatMap((m) => m.agent?.abilities ?? [])) {
     app.get(`/api/v1/agent${ability.path}`, publicHandler(async (req, reply) => {

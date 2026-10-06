@@ -1,5 +1,5 @@
-// The dot grid in the masthead's 报眼, beside the date: one dot per day of the month (dailies), week
-// of the year (weeklies) or month (monthlies). Issues that exist are ink dots, this issue is a larger
+// The dot grid in the masthead's 报眼, beside the date: one dot per day of the issue's month. Issues of
+// its kind that exist are ink dots, this issue is a larger
 // teal dot in a ring, the rest are faint. Hover names the day and its issue; a click opens it. Drawn
 // on a canvas in the same dot language as the nameplate; the archive column is the accessible way
 // to the same issues.
@@ -14,7 +14,7 @@ const INTRO_MS = 700;
 const easeOutBack = (p: number) => 1 + 2.2 * (p - 1) ** 3 + 1.2 * (p - 1) ** 2;
 
 export function IssueDots({ kind, reportKey, issueNumber, index, className = "" }: { kind: ReportKind; reportKey: string; issueNumber: number; index: ReportNavigationEntry[]; className?: string }) {
-  const grid = useMemo(() => periodGrid(kind, reportKey, index, issueNumber), [kind, reportKey, index, issueNumber]);
+  const grid = useMemo(() => periodGrid(reportKey, index, issueNumber), [reportKey, index, issueNumber]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const navigate = useNavigate();
   const rows = Math.ceil(grid.cells.length / grid.columns);

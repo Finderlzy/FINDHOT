@@ -1,5 +1,6 @@
 import { editionAt, gate, tag } from "./setup.ts";
-// A selected item released across the daily edition time must appear in the next issue exactly once.
+// A selected item released across the daily edition time must appear in the next issue (that day's
+// evening) exactly once.
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { setTimeout as delay } from "node:timers/promises";
@@ -7,7 +8,7 @@ import { closeDb, sql } from "@aihot/backend/db";
 import { upsertMaterial } from "@aihot/backend/content/materials";
 import { stopBoss } from "@aihot/backend/jobs/queue";
 import { publishArticle, publishArticleTx } from "@aihot/backend/publication/publish";
-import { composeDaily } from "@aihot/backend/reports/compose";
+import { composeDaily, composeEvening } from "@aihot/backend/reports/compose";
 import { candidates } from "@aihot/backend/reports/edition";
 
 const T = tag();
@@ -68,28 +69,28 @@ test("reports assign delayed and boundary releases to the period readers first s
   await publishArticle(groupedLate, { now: editionAt("daily", "2020-01-02", 10) });
   const [release] = await sql<{ visible_after: Date }[]>`SELECT visible_after FROM publications WHERE article_id = ${groupedLate}`;
   assert.equal(release!.visible_after.toISOString(), editionAt("daily", "2020-01-02", 10).toISOString());
-  const next = new Set((await candidates(boundary, editionAt("daily", "2020-01-03"))).map((c) => c.itemId));
+  const next = new Set((await candidates(boundary, editionAt("evening", "2020-01-02"))).map((c) => c.itemId));
   assert.equal(next.has(onTime), false);
   assert.equal(next.has(groupedBefore), false);
   for (const id of [delayed, atBoundary, groupedLate]) assert.equal(next.has(id), true);
-  await composeDaily("2020-01-03");
-  const reports = await sql<{ key: string; content: { sections: Array<{ items: Array<{ itemId: string }> }>; flashes: Array<{ itemId: string }> } }[]>`
-    SELECT key, content FROM reports WHERE kind = 'daily' AND key IN ('2020-01-02', '2020-01-03')`;
+  await composeEvening("2020-01-02");
+  const reports = await sql<{ kind: string; content: { sections: Array<{ items: Array<{ itemId: string }> }>; flashes: Array<{ itemId: string }> } }[]>`
+    SELECT kind, content FROM reports WHERE kind IN ('daily', 'evening') AND key = '2020-01-02'`;
   // An issue carries an item as an entry or as a flash (one source fills at most two entries).
-  const items = (key: string) => {
-    const content = reports.find((r) => r.key === key)!.content;
+  const items = (kind: string) => {
+    const content = reports.find((r) => r.kind === kind)!.content;
     return new Set([...content.sections.flatMap((s) => s.items), ...content.flashes].map((i) => i.itemId));
   };
-  assert.equal(items("2020-01-02").has(onTime), true);
-  assert.equal(items("2020-01-02").has(groupedBefore), true);
-  assert.equal(items("2020-01-02").has(delayed), false);
-  assert.equal(items("2020-01-02").has(atBoundary), false);
-  assert.equal(items("2020-01-02").has(groupedLate), false);
-  assert.equal(items("2020-01-03").has(onTime), false);
-  assert.equal(items("2020-01-03").has(groupedBefore), false);
-  assert.equal(items("2020-01-03").has(delayed), true);
-  assert.equal(items("2020-01-03").has(atBoundary), true);
-  assert.equal(items("2020-01-03").has(groupedLate), true);
+  assert.equal(items("daily").has(onTime), true);
+  assert.equal(items("daily").has(groupedBefore), true);
+  assert.equal(items("daily").has(delayed), false);
+  assert.equal(items("daily").has(atBoundary), false);
+  assert.equal(items("daily").has(groupedLate), false);
+  assert.equal(items("evening").has(onTime), false);
+  assert.equal(items("evening").has(groupedBefore), false);
+  assert.equal(items("evening").has(delayed), true);
+  assert.equal(items("evening").has(atBoundary), true);
+  assert.equal(items("evening").has(groupedLate), true);
 });
 
 /** Observe an actual PostgreSQL lock wait before advancing the clock or releasing the transaction. */

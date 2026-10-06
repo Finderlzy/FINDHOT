@@ -11,8 +11,8 @@ export const MCP_TOOL_NAMES = {
   hot: mcpToolName("get_hot_topics"),
   story: mcpToolName("get_story"),
   daily: mcpToolName("get_daily"),
-  weekly: mcpToolName("get_weekly"),
-  monthly: mcpToolName("get_monthly"),
+  evening: mcpToolName("get_evening"),
+  special: mcpToolName("get_special"),
 } as const;
 
 /** The engine's tools, in the order the server lists them. */

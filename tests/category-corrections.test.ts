@@ -1,6 +1,6 @@
 // Failure cases: a benchmark, price change, tool or follow-up is counted as a new model; a category
-// correction leaves frozen daily/weekly/monthly columns stale, rewrites the lead or selection, triggers
-// a paid digest, leaves an obsolete section introduction, or commits without its audit/revision.
+// correction leaves frozen daily/evening columns stale, rewrites a special's chapters, the lead or
+// selection, triggers a paid digest, or commits without its audit/revision.
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
@@ -37,8 +37,8 @@ test("category corrections revise every standard report atomically without selec
   await publishArticle(articleId, { releasedAt: new Date() });
   const entry = { itemId: articleId, title: "冻结标题", summary: "冻结摘要", sourceId, firstParty: true, role: "官方" };
   const contents = [
-    { kind: "daily", key: "2097-01-02", content: { leadItemId: articleId, lead: { title: "冻结头条" }, highlights: [articleId], flashes: [], sections: [{ label: "模型发布/更新", items: [entry] }], metrics: { totalEvents: 1, modelsReleased: 1 } } },
-    ...(["weekly", "monthly"] as const).map(kind => ({ kind, key: kind === "weekly" ? "2097-W01" : "2097-01", content: { headline: "冻结头条", leadItemId: articleId, storyOrder: [articleId], overview: "保留总述", themes: [{ heading: "模型发布/更新", summary: "旧模型导读", storyRefs: [entry] }], metrics: { totalStories: 1 } } })),
+    ...(["daily", "evening"] as const).map(kind => ({ kind, key: "2097-01-02", content: { leadItemId: articleId, lead: { title: "冻结头条" }, highlights: [articleId], flashes: [], sections: [{ label: "模型发布/更新", items: [entry] }], metrics: { totalEvents: 1, modelsReleased: 1 } } })),
+    { kind: "special", key: "2097-01-03", content: { headline: "专题", storyOrder: [articleId], overview: "保留导语", themes: [{ heading: "模型发布/更新", summary: null, paragraphs: ["正文"], storyRefs: [entry] }] } },
   ];
   for (const r of contents) await sql`INSERT INTO reports (kind,key,window_start,window_end,content,generated_at,origin)
     VALUES (${r.kind},${r.key},now(),now(),${sql.json(r.content as never)},now(),'imported')`;
@@ -50,7 +50,7 @@ test("category corrections revise every standard report atomically without selec
   try {
     await assert.rejects(change("reject-category"), /category audit rejected/);
     assert.equal((await sql`SELECT category FROM publications WHERE article_id=${articleId}`)[0]!.category, "ai-models");
-    assert.equal((await sql`SELECT 1 FROM report_revisions WHERE report_id IN (SELECT id FROM reports WHERE key IN ('2097-01-02','2097-W01','2097-01'))`).length, 0);
+    assert.equal((await sql`SELECT 1 FROM report_revisions WHERE report_id IN (SELECT id FROM reports WHERE key IN ('2097-01-02','2097-01-03'))`).length, 0);
   } finally {
     await sql.unsafe("DROP TRIGGER reject_category_audit ON audit_log; DROP FUNCTION reject_category_audit()");
   }
@@ -58,19 +58,18 @@ test("category corrections revise every standard report atomically without selec
   await change("test-category");
   for (const r of contents) {
     const [saved] = await sql`SELECT content,revision FROM reports WHERE kind=${r.kind} AND key=${r.key}`;
+    if (r.kind === "special") {
+      assert.equal(saved!.revision, 1, "a special's chapters are not sections");
+      assert.deepEqual(saved!.content, r.content);
+      continue;
+    }
     assert.equal(saved!.revision, 2);
     const c = saved!.content;
     assert.equal(c.leadItemId, articleId);
-    if (r.kind === "daily") {
-      assert.deepEqual(c.sections, [{ label: "产品发布/更新", items: [entry] }]);
-      assert.equal(c.metrics.modelsReleased, 0);
-      assert.deepEqual(c.highlights, [articleId]);
-      assert.equal(c.lead.title, "冻结头条");
-    } else {
-      assert.deepEqual(c.themes, [{ heading: "产品发布/更新", summary: null, storyRefs: [entry] }]);
-      assert.deepEqual(c.storyOrder, [articleId]);
-      assert.equal(c.overview, "保留总述");
-    }
+    assert.deepEqual(c.sections, [{ label: "产品发布/更新", items: [entry] }]);
+    assert.equal(c.metrics.modelsReleased, 0);
+    assert.deepEqual(c.highlights, [articleId]);
+    assert.equal(c.lead.title, "冻结头条");
   }
   assert.deepEqual((await sql`SELECT selected,seat,score,visible_after,selected_ready_at FROM publications WHERE article_id=${articleId}`)[0], before);
   assert.equal((await sql`SELECT count(*)::int AS n FROM pgboss.job WHERE name=${QUEUES.digest}`)[0]!.n, digestCount);

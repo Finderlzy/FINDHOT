@@ -60,6 +60,16 @@ test("a table nothing uses can be dropped alone, never with its dependents", () 
   ]) assert.throws(() => migrationPlan(statement), statement);
 });
 
+// Dropping a constraint changes the catalog only; CASCADE could take dependent constraints with it.
+test("a constraint can be dropped alone, never with its dependents", () => {
+  assert.equal(migrationPlan("ALTER TABLE reports DROP CONSTRAINT IF EXISTS reports_kind_check;").kind, "transaction");
+  for (const statement of [
+    "ALTER TABLE reports DROP CONSTRAINT IF EXISTS reports_kind_check CASCADE;",
+    "ALTER TABLE reports DROP CONSTRAINT reports_kind_check;",
+    "ALTER TABLE reports DROP CONSTRAINT IF EXISTS a, DROP CONSTRAINT IF EXISTS b;",
+  ]) assert.throws(() => migrationPlan(statement), statement);
+});
+
 test("concurrent indexes have one retriable statement per file, outside a transaction", () => {
   const plan = migrationPlan("CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS article_idx ON public.articles (id) WHERE id IS NOT NULL;");
   assert.deepEqual(plan, { kind: "index", index: "article_idx", table: "public.articles" });

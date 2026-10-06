@@ -7,7 +7,7 @@ import { InvalidCursorError } from "@aihot/backend/lib/cursor";
 import { SearchBusyError } from "@aihot/backend/publication/pool";
 import { selectedChanges, selectedSnapshot, SnapshotRequiredError, v1Items } from "@aihot/backend/publication/v1";
 import { resolveStory, v1HotTopics, v1Story } from "@aihot/backend/publication/stories";
-import { isPeriodKey, v1Dailies, v1Daily, v1Period, v1Periods } from "@aihot/backend/publication/reports";
+import { v1Dailies, v1Daily, v1Special, v1Specials } from "@aihot/backend/publication/reports";
 import { isValidDate } from "@aihot/contracts/time";
 import { requestNotice } from "@aihot/backend/modules";
 import { applyPublicHeaders, QueryError, sendJsonWithNotice, sendJsonWithEtag, sendProblem, strictQuery } from "../http/respond.ts";
@@ -23,12 +23,12 @@ export const V1_OPERATIONS = {
   dailies: op(["limit"], "public, max-age=60, s-maxage=60, must-revalidate"),
   latestDaily: op([], "public, max-age=60, s-maxage=60, must-revalidate"),
   dailyByDate: op([], "public, max-age=300, s-maxage=300, must-revalidate"),
-  weeklies: op(["limit"], "public, max-age=300, s-maxage=300, must-revalidate"),
-  latestWeekly: op([], "public, max-age=300, s-maxage=300, must-revalidate"),
-  weeklyByWeek: op([], "public, max-age=300, s-maxage=300, must-revalidate"),
-  monthlies: op(["limit"], "public, max-age=300, s-maxage=300, must-revalidate"),
-  latestMonthly: op([], "public, max-age=300, s-maxage=300, must-revalidate"),
-  monthlyByMonth: op([], "public, max-age=300, s-maxage=300, must-revalidate"),
+  evenings: op(["limit"], "public, max-age=60, s-maxage=60, must-revalidate"),
+  latestEvening: op([], "public, max-age=60, s-maxage=60, must-revalidate"),
+  eveningByDate: op([], "public, max-age=300, s-maxage=300, must-revalidate"),
+  specials: op(["limit"], "public, max-age=300, s-maxage=300, must-revalidate"),
+  latestSpecial: op([], "public, max-age=300, s-maxage=300, must-revalidate"),
+  specialByDate: op([], "public, max-age=300, s-maxage=300, must-revalidate"),
   selectedSnapshot: op(["fields", "limit", "page"], "public, max-age=300, s-maxage=300, must-revalidate"),
   selectedChanges: op(["cursor", "limit"], "public, max-age=60, s-maxage=60, must-revalidate"),
 };
@@ -121,53 +121,52 @@ export function registerV1(app: FastifyInstance) {
     return sendV1(req, reply, body, { etagPrefix: "v1-story", cacheControl: V1_OPERATIONS.storyByPublicId.cacheControl });
   }));
 
-  app.get("/api/v1/dailies", publicHandler(async (req, reply) => {
-    const q = strictQuery(req, V1_OPERATIONS.dailies.queryKeys);
-    const limit = intParam(q.limit, "limit", 1, 180, 30);
-    return sendV1(req, reply, await v1Dailies(limit), { etagPrefix: "v1-dailies", cacheControl: V1_OPERATIONS.dailies.cacheControl });
-  }));
-
-  app.get("/api/v1/dailies/latest", publicHandler(async (req, reply) => {
-    strictQuery(req, V1_OPERATIONS.latestDaily.queryKeys);
-    const body = await v1Daily("latest");
-    if (!body) return sendProblem(req, reply, { status: 404, code: "not_found", detail: "No daily report has been published yet." });
-    return sendV1(req, reply, body, { etagPrefix: "v1-daily", cacheControl: V1_OPERATIONS.latestDaily.cacheControl });
-  }));
-
-  app.get("/api/v1/dailies/:date", publicHandler(async (req, reply) => {
-    strictQuery(req, V1_OPERATIONS.dailyByDate.queryKeys);
-    const date = (req.params as { date: string }).date;
-    if (!isValidDate(date)) throw new QueryError("date must be a real YYYY-MM-DD calendar date.");
-    const body = await v1Daily(date);
-    if (!body) return sendProblem(req, reply, { status: 404, code: "not_found", detail: `No daily report exists for ${date}.`, cacheControl: "public, max-age=60" });
-    return sendV1(req, reply, body, { etagPrefix: "v1-daily", cacheControl: V1_OPERATIONS.dailyByDate.cacheControl });
-  }));
-
-  // Weeklies and monthlies: an index, the latest issue and one issue by ISO week or month.
+  // Dailies and evenings: an index, the latest issue and one issue by date.
   for (const p of [
-    { kind: "weekly", path: "weeklies", param: "week", name: "weekly", form: "a real ISO week such as 2026-W39", index: V1_OPERATIONS.weeklies, latest: V1_OPERATIONS.latestWeekly, byKey: V1_OPERATIONS.weeklyByWeek },
-    { kind: "monthly", path: "monthlies", param: "month", name: "monthly", form: "a real month such as 2026-09", index: V1_OPERATIONS.monthlies, latest: V1_OPERATIONS.latestMonthly, byKey: V1_OPERATIONS.monthlyByMonth },
+    { kind: "daily", path: "dailies", name: "daily", index: V1_OPERATIONS.dailies, latest: V1_OPERATIONS.latestDaily, byDate: V1_OPERATIONS.dailyByDate },
+    { kind: "evening", path: "evenings", name: "evening", index: V1_OPERATIONS.evenings, latest: V1_OPERATIONS.latestEvening, byDate: V1_OPERATIONS.eveningByDate },
   ] as const) {
     app.get(`/api/v1/${p.path}`, publicHandler(async (req, reply) => {
       const q = strictQuery(req, p.index.queryKeys);
-      const limit = intParam(q.limit, "limit", 1, 60, 12);
-      return sendV1(req, reply, await v1Periods(p.kind, limit), { etagPrefix: `v1-${p.path}`, cacheControl: p.index.cacheControl });
+      const limit = intParam(q.limit, "limit", 1, 180, 30);
+      return sendV1(req, reply, await v1Dailies(p.kind, limit), { etagPrefix: `v1-${p.path}`, cacheControl: p.index.cacheControl });
     }));
     app.get(`/api/v1/${p.path}/latest`, publicHandler(async (req, reply) => {
       strictQuery(req, p.latest.queryKeys);
-      const body = await v1Period(p.kind, "latest");
+      const body = await v1Daily(p.kind, "latest");
       if (!body) return sendProblem(req, reply, { status: 404, code: "not_found", detail: `No ${p.name} report has been published yet.` });
       return sendV1(req, reply, body, { etagPrefix: `v1-${p.name}`, cacheControl: p.latest.cacheControl });
     }));
-    app.get(`/api/v1/${p.path}/:${p.param}`, publicHandler(async (req, reply) => {
-      strictQuery(req, p.byKey.queryKeys);
-      const key = (req.params as Record<string, string>)[p.param]!;
-      if (!isPeriodKey(p.kind, key)) throw new QueryError(`${p.param} must be ${p.form}.`);
-      const body = await v1Period(p.kind, key);
-      if (!body) return sendProblem(req, reply, { status: 404, code: "not_found", detail: `No ${p.name} report exists for ${key}.`, cacheControl: "public, max-age=60" });
-      return sendV1(req, reply, body, { etagPrefix: `v1-${p.name}`, cacheControl: p.byKey.cacheControl });
+    app.get(`/api/v1/${p.path}/:date`, publicHandler(async (req, reply) => {
+      strictQuery(req, p.byDate.queryKeys);
+      const date = (req.params as { date: string }).date;
+      if (!isValidDate(date)) throw new QueryError("date must be a real YYYY-MM-DD calendar date.");
+      const body = await v1Daily(p.kind, date);
+      if (!body) return sendProblem(req, reply, { status: 404, code: "not_found", detail: `No ${p.name} report exists for ${date}.`, cacheControl: "public, max-age=60" });
+      return sendV1(req, reply, body, { etagPrefix: `v1-${p.name}`, cacheControl: p.byDate.cacheControl });
     }));
   }
+
+  // Specials: an index, the latest issue and one issue by its date.
+  app.get("/api/v1/specials", publicHandler(async (req, reply) => {
+    const q = strictQuery(req, V1_OPERATIONS.specials.queryKeys);
+    const limit = intParam(q.limit, "limit", 1, 60, 12);
+    return sendV1(req, reply, await v1Specials(limit), { etagPrefix: "v1-specials", cacheControl: V1_OPERATIONS.specials.cacheControl });
+  }));
+  app.get("/api/v1/specials/latest", publicHandler(async (req, reply) => {
+    strictQuery(req, V1_OPERATIONS.latestSpecial.queryKeys);
+    const body = await v1Special("latest");
+    if (!body) return sendProblem(req, reply, { status: 404, code: "not_found", detail: "No special report has been published yet." });
+    return sendV1(req, reply, body, { etagPrefix: "v1-special", cacheControl: V1_OPERATIONS.latestSpecial.cacheControl });
+  }));
+  app.get("/api/v1/specials/:date", publicHandler(async (req, reply) => {
+    strictQuery(req, V1_OPERATIONS.specialByDate.queryKeys);
+    const date = (req.params as { date: string }).date;
+    if (!isValidDate(date)) throw new QueryError("date must be a real YYYY-MM-DD calendar date.");
+    const body = await v1Special(date);
+    if (!body) return sendProblem(req, reply, { status: 404, code: "not_found", detail: `No special report exists for ${date}.`, cacheControl: "public, max-age=60" });
+    return sendV1(req, reply, body, { etagPrefix: "v1-special", cacheControl: V1_OPERATIONS.specialByDate.cacheControl });
+  }));
 
   app.get("/api/v1/selected/snapshot", publicHandler(async (req, reply) => {
     const q = strictQuery(req, V1_OPERATIONS.selectedSnapshot.queryKeys);

@@ -2,6 +2,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { feedCacheControl, isFeedCategory, itemFeed, reportFeed, type ItemFeedKind } from "@aihot/backend/publication/feeds";
 import { requestNotice, serverModules } from "@aihot/backend/modules";
+import { REPORT_KINDS } from "@aihot/contracts/site";
 import { applyPublicHeaders, sendTextWithEtag } from "../http/respond.ts";
 
 async function sendFeed(req: FastifyRequest, reply: FastifyReply, xml: string, cacheControl: string) {
@@ -19,7 +20,7 @@ function feedError(reply: FastifyReply) {
 
 export function registerFeeds(app: FastifyInstance) {
   // A preflight gets 204 and the allowed methods; feeds send no CORS headers.
-  for (const url of ["/feed.xml", "/feed/full.xml", "/feed/all.xml", "/feed/daily.xml", "/feed/weekly.xml", "/feed/monthly.xml", "/feed/category/:file", "/feed/full/category/:file"]) {
+  for (const url of ["/feed.xml", "/feed/full.xml", "/feed/all.xml", "/feed/daily.xml", "/feed/evening.xml", "/feed/special.xml", "/feed/category/:file", "/feed/full/category/:file"]) {
     app.options(url, async (_req, reply) => reply.code(204).header("Allow", "GET, HEAD, OPTIONS").send());
   }
   const item = (kind: ItemFeedKind) => async (req: FastifyRequest, reply: FastifyReply) => {
@@ -33,7 +34,7 @@ export function registerFeeds(app: FastifyInstance) {
   app.get("/feed.xml", item("selected"));
   app.get("/feed/full.xml", item("selected-full"));
   app.get("/feed/all.xml", item("all"));
-  for (const kind of ["daily", "weekly", "monthly"] as const) {
+  for (const kind of REPORT_KINDS) {
     app.get(`/feed/${kind}.xml`, async (req, reply) => {
       try {
         return await sendFeed(req, reply, await reportFeed(kind, noticeFor(req)), feedCacheControl(kind));

@@ -77,6 +77,21 @@ docker compose run --rm setup && docker compose up -d
 
 下面按时间从新到旧列出每次更新要注意的事。
 
+#### 晚报、专题报取代周报、月报（公开接口 5.0.0，2026 年 10 月 6 日）
+
+- **日报改成半天一期，新增晚报**：日报（默认 08:00）收前一天晚报出刊以后到早上的消息，晚报（默认 20:00）收当天日报出刊以后到晚上的消息，两份不重复，报过的事只在有新进展时跟进。出刊时间在 `site/site.ts` 的 `EDITION_TIMES`（`daily`、`evening`）。第一份晚报是部署后最近一个到点的那期：在 20:00 以后（到第二天 08:00 之前）部署，它就是当天的晚报，正好接上当天早上的日报；在 08:00 到 20:00 之间部署，它会是前一天的晚报，和当天早上那期旧日报（当时还是 24 小时窗口）内容重叠。
+- **专题报**：默认每周三、周六 12:00（`EDITION_TIMES.special`、`SPECIAL_DAYS`）出一期，一期讲一个国家或地区。按规则挑主题：近两周事件最多（最近一周加倍）、最近四期没讲过、报道又不大半是最近专题讲过的那个；`industry/topics.json` 里写了 `"special": false` 的主题和 `genre` 组的主题不参选。模型按 `industry/prompts/report-special.md` 用近三周的相关报道写约 3000 字长文，每章列出引用的报道；写出材料里没有的名字或数字的段落不登，登不出六成或不到 1500 字就不出这期，下一次排程再试（每次失败会再调用一次模型）。某章引用的报道被撤下后，这一章只留标题和其余引用，不再显示正文。专题报只补最近到期的一期，不回补更早缺的。
+- **周报、月报删掉了**：页面（`/weekly`、`/monthly`）、RSS（`/feed/weekly.xml`、`/feed/monthly.xml`）、接口（`/api/v1/weeklies*`、`/api/v1/monthlies*`、`/api/v1/agent/weekly*`、`/api/v1/agent/monthly*`）和 MCP 工具 `<前缀>_get_weekly`、`<前缀>_get_monthly` 都去掉了，换成晚报和专题报的对应地址：`/evening`、`/special`、`/feed/evening.xml`、`/feed/special.xml`、`/api/v1/evenings*`、`/api/v1/specials*`、`/api/v1/agent/evening*`、`/api/v1/agent/special*`，MCP 工具 `<前缀>_get_evening`、`<前缀>_get_special`。日报接口的形状没变。MCP 和 `/openapi-v1.json` 的版本号升到 5.0.0。提示词 `report-period*.md` 删掉了，新加 `report-special.md`。
+- **迁移**：`0058_reports_kind_check_drop.sql` 去掉报告种类旧的限制，`0059_reports_kind_editions_check.sql` 加上新的限制（只检查新写入的行）。迁移检查新允许单独一条、不带 CASCADE 的 `ALTER TABLE … DROP CONSTRAINT IF EXISTS`。
+- **已有的周报、月报要手动删掉**（会删掉这些数据，需要的先备份）。迁移跑完、新服务启动后执行一次：
+
+  ```bash
+  docker compose exec db psql -U aihot -d aihot -c "DELETE FROM reports WHERE kind IN ('weekly', 'monthly')"
+  ```
+
+  它们的修订记录随之删除。不删的话它们只留在库里，网站和接口都不再读。
+- **`site.ts` 改了几项**：`EDITION_TIMES`、`EDITION_WHEN` 换成 `daily`、`evening`、`special` 三项，新增 `SPECIAL_DAYS`；`REPORTS.descriptions` 和 `CARDS` 同样换成这三种；`REPORTS.metricUnits` 新增 `reportsCited`。`public/` 里的占位改成 `{{dailyTime}}`、`{{eveningTime}}`、`{{specialTime}}`。报头字（`site/brand/nameplates/`）换成日报、晚报、专题报三张，改了行业词的站按 [把它改成你的行业](customize.md) 重新生成。
+
 #### 社区修复、时间规则与读取优化（2026 年 10 月 4 日）
 
 公开接口版本仍是 4.0.0。没有必填的新环境变量；新增一个选填的 `LLM_REASONING_TOKENS`，见下面 `site/models.ts` 一条。
@@ -166,7 +181,7 @@ docker compose run --rm setup && docker compose up -d
 - **一手只看分级**：`T1` 就是一手，`first_party` 不再单独设置；以前单独标成一手的 `T1_5`、`T2` 信源不再算一手，要算就改成 `T1`。
 - **行业包多了几项**：`taxonomy.ts` 新增 `RELEASE`、`PLAIN_TERMS`，评论类的类别标 `commentary: true`，`ENTITIES` 可以写 `otherNames`，`CATEGORY_BY_ITEM_TYPE` 不再使用。已经换成别的行业的站，合并时对照 [把它改成你的行业](customize.md) 补上。
 - **主题只读 `industry/topics.json`**：迁移会删掉数据库里的 `topics` 表。只改过数据库、没改文件的主题，升级前先写进文件。公司主题只看 `entityId`，`related` 不再使用。
-- **日报不再调用模型**：日报按规则编排，周报月报从日报汇编，模型只写总述和栏目导读；已经出过的各期不重写。
+- **日报不再调用模型**：日报按规则编排，周报月报从日报汇编，模型只写总述和栏目导读；已经出过的各期不重写。（周报月报后来换成了晚报和专题报，见上面 2026 年 10 月 6 日一节。）
 - **提示词有改动**：`industry/prompts/` 里的 `structure.md`、`group-*.md`、`story-digest.md`、`report-period.md` 换成了新的写法，`report-daily-lead.md` 删掉了，新加了 `report-period-sections.md`。改过这些提示词的，对照着把自己的改动搬过去。
 - **删掉的脚本**：`scripts/delete-sources.ts`、`scripts/regroup-events.ts`、`scripts/enqueue-analysis.ts`。不要的信源在后台暂停；单篇的重新评估、重新归组在后台“内容诊断”里打开这一篇操作。
 - **管理员会话绑定登录方式**（迁移 `0041`）：从还没有会话绑定的版本升级后，未绑定的旧会话需要重新登录。此前已试用会话绑定迁移的数据库可直接升级，已有列和绑定会被保留，无需手动修改迁移记录。之后的规则见下方“管理员会话与配置变更”。
@@ -207,7 +222,7 @@ docker compose logs -f --tail 100 api worker web
 
 ## 花多少钱
 
-- **模型**：每条新资料先预筛一次；过了预筛的再评两次分、做一次结构化、写一次标题摘要，然后归组（有相近的报道时才调用），另外还有事件综述、周报月报的总述和精选的全文翻译。日报按规则编排，不调用模型。我们用示范信源在本地试跑，第一次导入的 152 条资料一共用了大约 930 次模型调用。之后每天用多少，取决于你的信源每天更新多少条。后台“模型与评测”页能看到每一步的调用次数和输入输出 token 数。
+- **模型**：每条新资料先预筛一次；过了预筛的再评两次分、做一次结构化、写一次标题摘要，然后归组（有相近的报道时才调用），另外还有事件综述、专题报的长文（每周两期）和精选的全文翻译。日报、晚报按规则编排，不调用模型。我们用示范信源在本地试跑，第一次导入的 152 条资料一共用了大约 930 次模型调用。之后每天用多少，取决于你的信源每天更新多少条。后台“模型与评测”页能看到每一步的调用次数和输入输出 token 数。
 - **付费采集**（X、公众号、Jina）：按请求计费，默认不启用，填了 key 才会用。
 - 所有付费服务都有每分钟、每小时、每天的调用上限（后台“设置 → 付费请求上限”），超过就暂停，不会一夜之间刷爆账单。填 0 表示立即停用这个服务。
 

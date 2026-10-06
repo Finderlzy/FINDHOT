@@ -1,15 +1,15 @@
 // The report nameplates (site/brand/nameplates/, made by scripts/nameplates.ts from the pack's
 // subject word). Each logotype is cached on its own; the two paths take the theme's ink and accent.
 import daily from "@aihot/site/brand/nameplates/daily.svg?url&no-inline";
-import weekly from "@aihot/site/brand/nameplates/weekly.svg?url&no-inline";
-import monthly from "@aihot/site/brand/nameplates/monthly.svg?url&no-inline";
+import evening from "@aihot/site/brand/nameplates/evening.svg?url&no-inline";
+import special from "@aihot/site/brand/nameplates/special.svg?url&no-inline";
 import archive from "@aihot/site/brand/nameplates/archive.svg?url&no-inline";
 import viewBoxes from "@aihot/site/brand/nameplates/index.json";
 
 const NAMEPLATES = {
   daily: { url: daily, viewBox: viewBoxes.daily },
-  weekly: { url: weekly, viewBox: viewBoxes.weekly },
-  monthly: { url: monthly, viewBox: viewBoxes.monthly },
+  evening: { url: evening, viewBox: viewBoxes.evening },
+  special: { url: special, viewBox: viewBoxes.special },
   archive: { url: archive, viewBox: viewBoxes.archive },
 } as const;
 

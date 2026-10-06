@@ -31,12 +31,14 @@ export interface Topic {
   pattern: string | null;
   /** Companies: what a whole search query may call it. */
   aliases: string[];
+  /** Whether a special may be about it: a country or region narrow enough for one story, not a content form. */
+  special: boolean;
 }
 
 interface TopicFile {
   groups: TopicGroup[];
   topics: Array<{
-    slug: string; name: string; group: TopicGroupKey; entityId?: string; aliases?: string[]; tags?: string[]; definition: string;
+    slug: string; name: string; group: TopicGroupKey; entityId?: string; aliases?: string[]; tags?: string[]; definition: string; special?: false;
   }>;
 }
 
@@ -63,6 +65,7 @@ export const TOPICS: Topic[] = file.topics.map((t) => ({
   tags: t.entityId ? [`entity:${t.entityId}`] : (t.tags ?? []),
   pattern: t.entityId ? titlePattern(t.name, t.entityId) : null,
   aliases: t.entityId ? [t.slug, t.name, ...nameParts(t.name), ...(t.aliases ?? [])] : [],
+  special: t.group !== "genre" && t.special !== false,
 }));
 
 const BY_SLUG = new Map(TOPICS.map((t, position) => [t.slug, { topic: t, position }]));
@@ -100,8 +103,8 @@ export function topicMembership(topics: Topic[] = TOPICS) {
     ORDER BY t.position)`;
 }
 
-/** Report `p` is in topic `t`; the tag overlap comes first, for the tags index. */
-function inTopic(t: Topic) {
+/** Report `p` is in topic `t`; the tag overlap comes first, for the tags index. Also the specials' topic choice. */
+export function inTopic(t: Topic) {
   const pattern: ReturnType<typeof sql> = t.pattern === null ? sql`NULL::text` : sql`${t.pattern}::text`;
   return topicMatch(sql`${t.tags}::text[]`, pattern);
 }

@@ -1,24 +1,26 @@
-// Daily, weekly and monthly reports. Windows are Beijing calendar based and written into the report;
-// missed schedule points are caught up; regeneration creates a revision. What every issue carries is
-// decided by rule: a daily from edition.ts without a model; a weekly or monthly is compiled from its
-// dailies and a model only writes its overview and introductions, from the brief in the industry pack
-// (industry/prompts/report-period*.md).
+// Dailies, evenings and specials. Windows are Beijing calendar based and written into the report;
+// missed schedule points are caught up; regeneration creates a revision. A daily and an evening each
+// cover half a day and are composed by rule from edition.ts without a model. A special's topic and
+// material are chosen by rule (special.ts); a model writes the article from the brief in the industry
+// pack (industry/prompts/report-special.md), and what it writes beyond its material is not printed.
 import { z } from "zod";
-import { EDITION_TIMES, SITE } from "@aihot/site";
+import { EDITION_TIMES, SITE, SPECIAL_DAYS } from "@aihot/site";
 import { PLAIN_TERMS, RELEASE } from "@aihot/industry/taxonomy";
+import type { ReportKind } from "@aihot/contracts/site";
 import { promptText, promptVersion } from "../editorial/prompts.ts";
 import { modelFor } from "../editorial/models.ts";
 import { ENTITIES, isRelease } from "../editorial/vocabulary.ts";
-import { addDays, beijingAt, beijingDate, beijingTime, isoWeekLabel, isoWeekRange, monthRange } from "@aihot/contracts/time";
+import { addDays, beijingAt, beijingDate, beijingTime } from "@aihot/contracts/time";
 import { sql } from "../db.ts";
-import { logError } from "../lib/log-error.ts";
 import { chatJson } from "../providers/llm.ts";
-import { completeReceipt } from "../providers/receipts.ts";
+import { completeReceipt, rejectReceivedResponse } from "../providers/receipts.ts";
 import { shutdownSignal } from "../jobs/queue.ts";
+import { logError } from "../lib/log-error.ts";
 import { emit } from "../modules.ts";
-import { arrangeDaily, candidates, dailyEdition, periodEntries, sectionOf, SECTION_ORDER, type Candidate, type EditionEntry } from "./edition.ts";
+import { arrangeDaily, dailyEdition, sectionOf, SECTION_ORDER, type EditionEntry, type EditionKind } from "./edition.ts";
+import { chooseTopic, MATERIAL_DAYS, MIN_EVENTS, specialMaterial, type SpecialMaterial } from "./special.ts";
 
-export const REPORT_VERSION = promptVersion("report-period", "report-period-sections", "report-period-no-sections");
+export const REPORT_VERSION = promptVersion("report-special");
 
 /**
  * The masthead's figures, counted in events: sources over every report its entries cite; releases
@@ -35,12 +37,10 @@ export function dailyMetrics(main: EditionEntry[]) {
   };
 }
 
-type ReportKind = "daily" | "weekly" | "monthly";
-
 /** How many events an issue already published carries; nothing when it does not exist yet. */
 async function savedReport(kind: ReportKind, key: string) {
   const [row] = await sql<{ entries: number }[]>`
-    SELECT coalesce(CASE WHEN kind = 'daily' THEN (content->'metrics'->>'totalEvents')::int ELSE jsonb_array_length(content->'storyOrder') END, 0) AS entries
+    SELECT coalesce(CASE WHEN kind = 'special' THEN jsonb_array_length(content->'storyOrder') ELSE (content->'metrics'->>'totalEvents')::int END, 0) AS entries
     FROM reports WHERE kind = ${kind} AND key = ${key}`;
   return row;
 }
@@ -75,17 +75,23 @@ async function saveReport(kind: ReportKind, key: string, start: Date, end: Date,
 }
 
 /**
- * Daily report for Beijing date D covers the 24 hours up to the site's edition time on D (EDITION_TIMES).
- * Its most important entry leads, in its own words, and the next three are today's highlights.
+ * The half day an issue dated D covers: a daily from the evening's edition time the day before to its own
+ * edition time on D, an evening from the daily's edition time on D to its own (EDITION_TIMES).
  */
-export async function composeDaily(date: string, reason?: string): Promise<{ key: string; entries: number }> {
-  const previous = await savedReport("daily", date);
+export function editionWindow(kind: EditionKind, date: string): { start: Date; end: Date } {
+  return kind === "daily"
+    ? { start: beijingAt(addDays(date, -1), EDITION_TIMES.evening), end: beijingAt(date, EDITION_TIMES.daily) }
+    : { start: beijingAt(date, EDITION_TIMES.daily), end: beijingAt(date, EDITION_TIMES.evening) };
+}
+
+/** A daily or evening for Beijing date D: its most important entry leads, in its own words, and the next three are its highlights. */
+async function composeEdition(kind: EditionKind, date: string, reason?: string): Promise<{ key: string; entries: number }> {
+  const previous = await savedReport(kind, date);
   if (previous && reason === undefined) return { key: date, entries: previous.entries };
-  const end = beijingAt(date, EDITION_TIMES.daily);
-  const start = new Date(end.getTime() - 86400000);
-  const edition = await dailyEdition(date, start, end);
+  const { start, end } = editionWindow(kind, date);
+  const edition = await dailyEdition(kind, date, start, end);
   // An issue with nothing in it is a failure upstream, not a report: the run fails and is caught up later.
-  if (edition.entries.length === 0) throw new Error(`daily ${date}: no selected items in its window`);
+  if (edition.entries.length === 0) throw new Error(`${kind} ${date}: no selected items in its window`);
   const issue = arrangeDaily(edition.entries);
   const [lead, ...rest] = issue.main as [EditionEntry, ...EditionEntry[]];
   const content = {
@@ -100,45 +106,39 @@ export async function composeDaily(date: string, reason?: string): Promise<{ key
     metrics: dailyMetrics(issue.main),
     windowStart: start.toISOString(),
     windowEnd: end.toISOString(),
-    generator: { version: REPORT_VERSION, ...edition.stats, ...issue.stats },
+    generator: { version: "rule", ...edition.stats, ...issue.stats },
   };
-  await saveReport("daily", date, start, end, content, reason, null, []);
+  await saveReport(kind, date, start, end, content, reason, null, []);
   return { key: date, entries: issue.main.length };
 }
 
-/** A weekly's or monthly's size: the events it carries, chosen and ordered by rule. */
-const PERIOD_EVENTS = { weekly: 20, monthly: 30 } as const;
-/** A section is introduced once it carries this many events; one or two are read faster than introduced. */
-const INTRO_EVENTS = 3;
-/** The longest overview and introduction an issue prints; the brief asks for less, writers overshoot. */
-const OVERVIEW_CHARS = { weekly: 240, monthly: 340 } as const;
-const INTRO_CHARS = 90;
-/** The brief's values for each kind: its name, its span and how long its overview should be. */
-const BRIEF = {
-  weekly: { kindName: "周报", span: "一周", sentences: "三句话", chars: "160" },
-  monthly: { kindName: "月报", span: "个月", sentences: "三到四句话", chars: "240" },
-} as const;
+export const composeDaily = (date: string, reason?: string) => composeEdition("daily", date, reason);
+export const composeEvening = (date: string, reason?: string) => composeEdition("evening", date, reason);
 
-export const PeriodSchema = z.object({
-  overview: z.string().max(1500).catch(""),
-  sections: z.record(z.string(), z.string().max(600)).catch({}),
+/** How long a special is asked to be, and the least of it that must survive the check to be printed. */
+const SPECIAL_CHARS = 3000;
+const MIN_KEPT_CHARS = 1500;
+const MIN_KEPT_SHARE = 0.6;
+const TITLE_CHARS = 30;
+const DEK_CHARS = 160;
+const CHAPTER_HEADING_CHARS = 16;
+
+export const SpecialSchema = z.object({
+  title: z.string().max(200),
+  dek: z.string().max(1000),
+  chapters: z.array(z.object({
+    heading: z.string().max(100),
+    paragraphs: z.array(z.string().max(2000)).max(12),
+    refs: z.array(z.number().int()).max(40).catch([]),
+  })).min(1).max(10),
 });
 
-/**
- * The writer's brief for a week or month: its events as chosen, ordered and grouped by rule. It writes
- * the overview and the introductions of the sections large enough for one, and decides nothing about
- * what the issue carries.
- */
-export function periodPrompt(kind: "weekly" | "monthly", startDate: string, endDateInclusive: string, groups: Array<{ label: string; items: Candidate[] }>) {
-  const list = groups.map((g) => [`【${g.label}】`, ...g.items.map((e) => `- ${e.title}｜${e.summary.slice(0, 140)}`)].join("\n")).join("\n");
-  const introduced = groups.filter((g) => g.items.length >= INTRO_EVENTS).map((g) => g.label);
+/** The writer's brief: the topic and its numbered material, each report as date, source, headline and summary. */
+export function specialPrompt(topic: string, material: SpecialMaterial[]) {
+  const line = (m: SpecialMaterial) => `[${m.n}] ${beijingDate(m.publishedAt)}｜${m.sourceName}｜${m.title}｜${m.summary.slice(0, 240)}`;
   return {
-    system: promptText("report-period", {
-      ...BRIEF[kind],
-      sections: introduced.length ? promptText("report-period-sections", { columns: introduced.map((l) => `「${l}」`).join("") }) : promptText("report-period-no-sections"),
-      sectionsExample: introduced.length ? `{"${introduced[0]}": "..."}` : "{}",
-    }),
-    user: `本期：${startDate} 至 ${endDateInclusive}\n${list}`,
+    system: promptText("report-special", { topic, days: String(MATERIAL_DAYS), chars: String(SPECIAL_CHARS) }),
+    user: `本期：${topic}\n${material.map(line).join("\n")}`,
   };
 }
 
@@ -147,10 +147,10 @@ const COMPANY_NAMES = Object.values(ENTITIES).map((e) => [e.name, ...e.aliases, 
 const PLAIN = new Set([...PLAIN_TERMS, SITE.name.toLowerCase()]);
 
 /**
- * Whether written text names only what the listed items name: every capitalised or numbered Latin token
+ * Whether written text names only what its material names: every capitalised or numbered Latin token
  * (Acme, Nova-2.5, X1), every figure of three or more digits or with a decimal point or percent (845,
- * 129.3, 40%) and every company of the vocabulary appears in the items' own words; a company may be named
- * in either language (谷歌 for Google).
+ * 129.3, 40%) and every country or organisation of the vocabulary appears in the material's own words;
+ * one may be named in either language (美国 for US).
  */
 export function grounded(text: string, corpus: string): boolean {
   const known = corpus.toLowerCase();
@@ -173,78 +173,80 @@ export function fitted(text: string, max: number): string | null {
   return out.trim() || null;
 }
 
+const length = (text: string) => [...text].length;
+const oneLine = (text: string) => text.replace(/\s+/g, " ").trim();
+
 /**
- * A weekly or monthly, compiled from the dailies dated in the period. Its events, their order and their
- * sections are decided by rule: the first event leads and the next three are the highlights. A model
- * only writes the overview and the introductions of sections with three or more events; text naming
- * anything the events do not name is not used, and overlong text keeps the leading sentences that fit.
- * Without a usable overview the issue is saved with none (see periodOverview).
+ * The article as printed, or why it cannot be: a title and dek that fit and name only what the material
+ * names; each chapter's paragraphs that do, under its heading, citing the material it names by number
+ * (a chapter without a valid citation cites nothing and is dropped). Most of what was written must
+ * survive, else the special is not printed.
  */
-async function composePeriod(kind: "weekly" | "monthly", key: string, startDate: string, endDateInclusive: string, reason: string | undefined) {
-  const previous = await savedReport(kind, key);
-  if (previous && reason === undefined) return { key, entries: previous.entries };
-  // The dailies' windows run from the edition time the day before the first to that time on the last.
-  const start = beijingAt(addDays(startDate, -1), EDITION_TIMES.daily);
-  const end = beijingAt(endDateInclusive, EDITION_TIMES.daily);
-  const { entries, issues } = await periodEntries(startDate, endDateInclusive);
-  const top = entries.slice(0, PERIOD_EVENTS[kind]);
-  if (!top.length) throw new Error(`${kind} ${key}: no daily entries in the period`);
-  const selected = await candidates(start, end);
-  const groups = SECTION_ORDER
-    .map((label) => ({ label, items: top.filter((e) => sectionOf(e.category) === label) }))
-    .filter((g) => g.items.length > 0);
-  const corpus = [`${startDate} ${endDateInclusive}`, ...top.map((e) => `${e.title} ${e.summary}`)].join("\n");
-  const model = await modelFor("report");
-  let written: z.infer<typeof PeriodSchema> = { overview: "", sections: {} };
-  let receiptId: number | null = null;
-  try {
-    const res = await chatJson({
-      model, purpose: `report_${kind}`, subject: `report:${kind}:${key}`, promptVersion: REPORT_VERSION,
-      ...periodPrompt(kind, startDate, endDateInclusive, groups), schema: PeriodSchema, temperature: 0.3, maxTokens: 2500,
-    });
-    written = res.data;
-    receiptId = res.receiptId;
-  } catch (error) {
-    if (shutdownSignal.signal.aborted) throw error;
-    console.error(JSON.stringify({ level: "warn", msg: "period writer failed; the issue goes out with its plain overview", report: `${kind}:${key}`, error: logError(error) }));
+export function vetArticle(written: z.infer<typeof SpecialSchema>, material: SpecialMaterial[], corpus: string) {
+  const byN = new Map(material.map((m) => [m.n, m]));
+  const title = oneLine(written.title);
+  const dek = fitted(oneLine(written.dek), DEK_CHARS);
+  if (!title || length(title) > TITLE_CHARS || !grounded(title, corpus)) return { error: "title missing, too long or naming what the material does not" } as const;
+  if (!dek || !grounded(dek, corpus)) return { error: "dek missing or naming what the material does not" } as const;
+  let writtenChars = 0;
+  const chapters = written.chapters.flatMap((c) => {
+    const paragraphs = c.paragraphs.map(oneLine).filter(Boolean);
+    writtenChars += paragraphs.reduce((sum, p) => sum + length(p), 0);
+    const kept = paragraphs.filter((p) => grounded(p, corpus));
+    const refs = [...new Set(c.refs)].map((n) => byN.get(n)).filter((m): m is SpecialMaterial => !!m);
+    const heading = oneLine(c.heading);
+    if (!kept.length || !refs.length || !heading || length(heading) > CHAPTER_HEADING_CHARS) return [];
+    return [{ heading, paragraphs: kept, refs }];
+  });
+  const keptChars = chapters.reduce((sum, c) => sum + c.paragraphs.reduce((n, p) => n + length(p), 0), 0);
+  if (keptChars < MIN_KEPT_CHARS || keptChars < MIN_KEPT_SHARE * writtenChars) {
+    return { error: `only ${keptChars} of ${writtenChars} characters could be printed` } as const;
   }
-  const usable = (text: string | undefined, max: number) => {
-    const fit = fitted(text ?? "", max);
-    return fit && grounded(fit, corpus) ? fit : null;
-  };
-  // Without a usable one the read layer says what the issue carries, naming only what is still public.
-  const overview = usable(written.overview, OVERVIEW_CHARS[kind]);
-  const intro = (g: { label: string; items: Candidate[] }) => g.items.length >= INTRO_EVENTS ? usable(written.sections[g.label], INTRO_CHARS) : null;
-  const [lead] = top as [Candidate, ...Candidate[]];
+  return { title, dek, chapters, dropped: writtenChars - keptChars } as const;
+}
+
+/**
+ * A special dated D, at its edition time: the topic chosen by rule, an article a model writes from its
+ * material, and under each chapter the reports it cites. Without a topic that has enough news, or when
+ * too little of what was written can be printed, the run fails and is tried again at the next run.
+ */
+export async function composeSpecial(date: string, reason?: string): Promise<{ key: string; entries: number }> {
+  const previous = await savedReport("special", date);
+  if (previous && reason === undefined) return { key: date, entries: previous.entries };
+  const end = beijingAt(date, EDITION_TIMES.special);
+  const start = new Date(end.getTime() - MATERIAL_DAYS * 86_400_000);
+  const choice = await chooseTopic(date, end);
+  if (!choice) throw new Error(`special ${date}: no topic has ${MIN_EVENTS} events in two weeks`);
+  const material = specialMaterial(choice.rows);
+  const corpus = [choice.topic.name, ...material.map((m) => `${beijingDate(m.publishedAt)} ${m.sourceName} ${m.title} ${m.summary}`)].join("\n");
+  const model = await modelFor("report");
+  const res = await chatJson({
+    model, purpose: "report_special", subject: `report:special:${date}`, promptVersion: REPORT_VERSION,
+    ...specialPrompt(choice.topic.name, material), schema: SpecialSchema, temperature: 0.6, maxTokens: 9000,
+  });
+  const article = vetArticle(res.data, material, corpus);
+  if ("error" in article) {
+    await rejectReceivedResponse(res.receiptId, `special ${date}: ${article.error}`);
+    throw new Error(`special ${date} (${choice.topic.slug}): ${article.error}`);
+  }
+  const cite = ({ n: _n, ...m }: SpecialMaterial) => m;
+  const cited = [...new Map(article.chapters.flatMap((c) => c.refs).map((m) => [m.itemId, m])).values()];
   const content = {
-    kind,
-    title: kind === "weekly" ? `${SITE.name} 周报 · ${key}` : `${SITE.name} 月报 · ${key}`,
-    ...(kind === "weekly" ? { isoLabel: key } : { monthLabel: key }),
-    periodStart: startDate,
-    periodEnd: endDateInclusive,
-    headline: lead.title,
-    leadItemId: lead.itemId,
-    highlights: top.slice(1, 4).map((e) => e.itemId),
-    overview,
-    themes: groups.map((g) => ({ heading: g.label, summary: intro(g), storyRefs: g.items.map(({ category: _c, factKey: _f, ...e }) => e) })),
-    storyOrder: top.map((e) => e.itemId),
-    metrics: { totalStories: top.length, selectedCount: selected.length, reportsCovered: issues },
-    generator: { version: REPORT_VERSION, model, written: overview !== null },
+    kind: "special",
+    topic: { slug: choice.topic.slug, name: choice.topic.name },
+    title: article.title,
+    headline: article.title,
+    overview: article.dek,
+    highlights: [...cited].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, 3).map((m) => m.itemId),
+    themes: article.chapters.map((c) => ({ heading: c.heading, summary: null, paragraphs: c.paragraphs, storyRefs: c.refs.map(cite) })),
+    storyOrder: cited.map((m) => m.itemId),
+    periodStart: beijingDate(start),
+    periodEnd: date,
+    metrics: { reportsCited: cited.length, sourcesCount: new Set(cited.map((m) => m.sourceId)).size },
+    generator: { version: REPORT_VERSION, model, material: material.length, droppedChars: article.dropped },
   };
-  await saveReport(kind, key, start, end, content, reason, model, receiptId === null ? [] : [receiptId]);
-  return { key, entries: top.length };
-}
-
-export async function composeWeekly(label: string, reason?: string) {
-  const range = isoWeekRange(label);
-  if (!range) throw new Error(`bad week label ${label}`);
-  return composePeriod("weekly", label, range.start, range.end, reason);
-}
-
-export async function composeMonthly(label: string, reason?: string) {
-  const range = monthRange(label);
-  if (!range) throw new Error(`bad month label ${label}`);
-  return composePeriod("monthly", label, range.start, range.end, reason);
+  await saveReport("special", date, start, end, content, reason, model, [res.receiptId]);
+  return { key: date, entries: cited.length };
 }
 
 /** The newest daily due by `now`: today's from its edition time (Beijing), yesterday's before. */
@@ -253,47 +255,43 @@ export function dueDaily(now = new Date()): string {
   return beijingTime(now) >= EDITION_TIMES.daily ? today : addDays(today, -1);
 }
 
-/** The newest weekly due by `now`: the last complete ISO week from its edition time on Monday, the one before until then. */
-export function dueWeekly(now = new Date()): string {
+/** The newest evening due by `now`: today's from its edition time (Beijing), yesterday's before. */
+export function dueEvening(now = new Date()): string {
   const today = beijingDate(now);
-  const dow = (new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7;
-  const due = dow > 0 || beijingTime(now) >= EDITION_TIMES.weekly;
-  return isoWeekLabel(addDays(today, -dow - (due ? 7 : 14)));
+  return beijingTime(now) >= EDITION_TIMES.evening ? today : addDays(today, -1);
 }
 
-/** The newest monthly due by `now`: the last complete month from its edition time on the 1st, the one before until then. */
-export function dueMonthly(now = new Date()): string {
-  const [y, m, d] = beijingDate(now).split("-").map(Number) as [number, number, number];
-  const due = d > 1 || beijingTime(now) >= EDITION_TIMES.monthly;
-  const back = due ? 1 : 2;
-  const month = (y * 12 + (m - 1) - back);
-  return `${Math.floor(month / 12)}-${String((month % 12) + 1).padStart(2, "0")}`;
-}
+/** The ISO weekday (1 Monday … 7 Sunday) of a Beijing date. */
+const weekday = (date: string) => new Date(`${date}T00:00:00Z`).getUTCDay() || 7;
 
-const nextWeek = (label: string) => isoWeekLabel(addDays(isoWeekRange(label)!.start, 7));
-const nextMonth = (label: string) => {
-  const [y, m] = label.split("-").map(Number) as [number, number];
-  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
-};
+/** The newest special due by `now`: the latest of its days (SPECIAL_DAYS) whose edition time has passed. */
+export function dueSpecial(now = new Date()): string {
+  const today = beijingDate(now);
+  for (let back = 0; ; back++) {
+    const date = addDays(today, -back);
+    if (SPECIAL_DAYS.includes(weekday(date)) && (back > 0 || beijingTime(now) >= EDITION_TIMES.special)) return date;
+  }
+}
 
 /**
- * The scheduled run (every half hour): every issue due by `now` that does not exist yet, oldest first.
- * The newest one appears at the first run after it falls due (above); a long stop or an older gap is
- * filled too. A kind with no issue yet only gets its latest due one. An issue that fails does not hold
- * up the others; at most `limit` issues are written per run, the next run continues.
+ * The scheduled run (every half hour): every daily and evening due by `now` that does not exist yet,
+ * oldest first. The newest one appears at the first run after it falls due (above); a long stop or an
+ * older gap is filled too. A kind with no issue yet only gets its latest due one, and a special only ever
+ * its latest: an older one would be written from news that has moved on. An issue that fails does not
+ * hold up the others; at most `limit` issues are written per run, the next run continues.
  */
 export async function composeDueReports(now = new Date(), limit = 8): Promise<{ generated: string[]; failed: string[] }> {
   const generated: string[] = [];
   const failed: string[] = [];
-  const kinds: Array<{ kind: ReportKind; due: string; next: (k: string) => string; compose: (k: string) => Promise<unknown> }> = [
-    { kind: "daily", due: dueDaily(now), next: (k) => addDays(k, 1), compose: composeDaily },
-    { kind: "weekly", due: dueWeekly(now), next: nextWeek, compose: composeWeekly },
-    { kind: "monthly", due: dueMonthly(now), next: nextMonth, compose: composeMonthly },
+  const kinds: Array<{ kind: ReportKind; due: string; compose: (k: string) => Promise<unknown> }> = [
+    { kind: "daily", due: dueDaily(now), compose: composeDaily },
+    { kind: "evening", due: dueEvening(now), compose: composeEvening },
+    { kind: "special", due: dueSpecial(now), compose: composeSpecial },
   ];
   kinds: for (const k of kinds) {
     const have = new Set((await sql<{ key: string }[]>`SELECT key FROM reports WHERE kind = ${k.kind}`).map((r) => r.key));
-    const first = [...have].sort()[0] ?? k.due;
-    for (let key = first; key <= k.due; key = k.next(key)) {
+    const first = k.kind === "special" ? k.due : [...have].sort()[0] ?? k.due;
+    for (let key = first; key <= k.due; key = addDays(key, 1)) {
       if (have.has(key)) continue;
       if (shutdownSignal.signal.aborted || generated.length >= limit) break kinds;
       try {

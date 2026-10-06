@@ -13,11 +13,11 @@ import { PUBLIC_API_CATEGORY_KEYS } from "@aihot/contracts/taxonomy";
 import { isValidDate } from "@aihot/contracts/time";
 import { config } from "@aihot/backend/config";
 import { logError } from "@aihot/backend/lib/log-error";
-import { dailyAnswer, hotAnswer, latestAnswer, periodAnswer, searchAnswer, searchItems, storyAnswer } from "@aihot/backend/publication/agent";
+import { dailyAnswer, hotAnswer, latestAnswer, specialAnswer, searchAnswer, searchItems, storyAnswer } from "@aihot/backend/publication/agent";
 import { v1Items } from "@aihot/backend/publication/v1";
 import { SearchBusyError } from "@aihot/backend/publication/pool";
 import { resolveStory, v1HotTopics, v1Story } from "@aihot/backend/publication/stories";
-import { dailyWithNotes, isPeriodKey, v1Period } from "@aihot/backend/publication/reports";
+import { dailyWithNotes, v1Special } from "@aihot/backend/publication/reports";
 import { requestNotice, serverModules, type McpNotice } from "@aihot/backend/modules";
 
 /** What each tool is for, in the order the instructions name them; the modules' come last. */
@@ -26,8 +26,8 @@ const USES = [
   `${T.search} for a named subject`,
   `${T.hot} for the current ranked events`,
   `${T.story} only with a public ID returned by hot topics`,
-  `${T.daily} for an edited daily overview`,
-  `${T.weekly} and ${T.monthly} for the edited weekly and monthly reports`,
+  `${T.daily} and ${T.evening} for the edited morning and evening overviews`,
+  `${T.special} for a long article on one country or region`,
 ];
 
 const abilities = () => serverModules().flatMap((m) => m.agent?.abilities ?? []);
@@ -95,11 +95,8 @@ const STORY_INPUT = z.strictObject({
 const DAILY_INPUT = z.strictObject({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Optional real calendar date in YYYY-MM-DD. Omit for the latest daily report."),
 });
-const WEEKLY_INPUT = z.strictObject({
-  week: z.string().regex(/^\d{4}-W\d{2}$/).optional().describe("Optional real ISO week such as 2026-W39. Omit for the latest weekly report."),
-});
-const MONTHLY_INPUT = z.strictObject({
-  month: z.string().regex(/^\d{4}-\d{2}$/).optional().describe("Optional real month in YYYY-MM such as 2026-09. Omit for the latest monthly report."),
+const SPECIAL_INPUT = z.strictObject({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Optional publication date in YYYY-MM-DD. Omit for the latest special."),
 });
 
 // Agents repeat the same calls. Answers are kept 30 s, within the minute the v1 HTTP answers are
@@ -190,39 +187,38 @@ function registerTools(server: McpServer, say: typeof ok) {
     }),
   );
 
-  server.registerTool(
-    T.daily,
-    {
-      description: `Get ${SITE.name}'s edited daily overview, either the latest issue or a real YYYY-MM-DD date. Use this when the user asks for a daily report rather than a raw chronological list.`,
-      inputSchema: DAILY_INPUT,
-      annotations: ANNOTATIONS,
-    },
-    safe(T.daily, async (args) => {
-      if (args.date && !isValidDate(args.date)) return fail("invalid_request", `${args.date} 不是有效日期。`);
-      const res = await recent(`daily:${args.date ?? "latest"}`, () => dailyWithNotes(args.date ?? "latest"));
-      if (!res) return fail("not_found", args.date ? `没有 ${args.date} 的公开日报。` : "还没有公开日报。");
-      return say(dailyAnswer(res.body.report, "mcp", res.notes), res.body);
-    }),
-  );
-
   for (const p of [
-    { kind: "weekly", tool: T.weekly, input: WEEKLY_INPUT, key: (a: { week?: string }) => a.week, name: "周报", form: "真实的 ISO 周（例如 2026-W39）",
-      description: `Get ${SITE.name}'s edited weekly report: the week's most important events chosen from its dailies, grouped by section, with an overview. Use this for what happened this week or in a given ISO week; omit week for the latest.` },
-    { kind: "monthly", tool: T.monthly, input: MONTHLY_INPUT, key: (a: { month?: string }) => a.month, name: "月报", form: "真实的月份（例如 2026-09）",
-      description: `Get ${SITE.name}'s edited monthly report: the month's most important events chosen from its dailies, grouped by section, with an overview. Use this for what happened this month or in a given month; omit month for the latest.` },
+    { kind: "daily", tool: T.daily, name: "日报",
+      description: `Get ${SITE.name}'s edited daily overview, published in the morning with the news from the previous evening to the morning; either the latest issue or a real YYYY-MM-DD date. Use this when the user asks for a daily report rather than a raw chronological list.` },
+    { kind: "evening", tool: T.evening, name: "晚报",
+      description: `Get ${SITE.name}'s edited evening overview, published in the evening with the news of that day since the morning's daily; either the latest issue or a real YYYY-MM-DD date.` },
   ] as const) {
     server.registerTool(
       p.tool,
-      { description: p.description, inputSchema: p.input, annotations: ANNOTATIONS },
-      safe(p.tool, async (args: { week?: string; month?: string }) => {
-        const key = p.key(args);
-        if (key && !isPeriodKey(p.kind, key)) return fail("invalid_request", `${key} 不是${p.form}。`);
-        const body = await recent(`${p.kind}:${key ?? "latest"}`, () => v1Period(p.kind, key ?? "latest"));
-        if (!body) return fail("not_found", key ? `没有 ${key} 的${p.name}；不要换一期冒充。` : `还没有发布过${p.name}。`);
-        return say(periodAnswer(body.report, p.kind, "mcp"), body);
+      { description: p.description, inputSchema: DAILY_INPUT, annotations: ANNOTATIONS },
+      safe(p.tool, async (args) => {
+        if (args.date && !isValidDate(args.date)) return fail("invalid_request", `${args.date} 不是有效日期。`);
+        const res = await recent(`${p.kind}:${args.date ?? "latest"}`, () => dailyWithNotes(p.kind, args.date ?? "latest"));
+        if (!res) return fail("not_found", args.date ? `没有 ${args.date} 的公开${p.name}。` : `还没有公开${p.name}。`);
+        return say(dailyAnswer(res.body.report, "mcp", res.notes, p.kind), res.body);
       }),
     );
   }
+
+  server.registerTool(
+    T.special,
+    {
+      description: `Get ${SITE.name}'s special: a long article on one country or region, written from its reports of the last weeks, with the reports each chapter cites. Use this when the user wants the background of a country or region; omit date for the latest.`,
+      inputSchema: SPECIAL_INPUT,
+      annotations: ANNOTATIONS,
+    },
+    safe(T.special, async (args) => {
+      if (args.date && !isValidDate(args.date)) return fail("invalid_request", `${args.date} 不是有效日期。`);
+      const body = await recent(`special:${args.date ?? "latest"}`, () => v1Special(args.date ?? "latest"));
+      if (!body) return fail("not_found", args.date ? `没有 ${args.date} 出刊的专题报；不要换一期冒充。` : "还没有发布过专题报。");
+      return say(specialAnswer(body.report, "mcp"), body);
+    }),
+  );
 
   for (const ability of abilities()) {
     const name = mcpToolName(ability.mcp.tool);

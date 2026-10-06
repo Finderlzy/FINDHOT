@@ -1,6 +1,7 @@
 // One report with a newspaper's structure in the site's own look: a nameplate with its 报眼 (the box
-// beside it for the issue and date), a band of the issue's figures, the front page (the lead, today's
-// highlights and the page index), then one page per section in two columns, the neighbouring issues
+// beside it for the issue and date), a band of the issue's figures, then for a daily or evening the
+// front page (the lead, the highlights and the page index) and one page per section in two columns,
+// for a special its article chapter by chapter with the reports each cites; the neighbouring issues
 // and a colophon. Colours, type and components are the site's; only the structure is a paper's.
 // Rules are hairlines in two weights: line-strong closes the masthead and underlines a page's heading
 // and the neighbours; line parts stories, columns and list rows. Nothing is set in solid ink. Stories
@@ -25,16 +26,16 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const keyOf = (c: ReportCitation) => c.itemId ?? c.title;
 const anchorOf = (c: ReportCitation) => (c.itemId ? `r-${c.itemId}` : null);
 const LINK = "inline-flex min-h-7 items-center gap-0.5 font-medium transition-colors hover:text-accent";
-/** What comes before `noun` at the end of `phrase` ("往期 AI " of "往期 AI 周报"), so the kind's name is its own text. */
+/** What comes before `noun` at the end of `phrase` ("往期 AI " of "往期 AI 晚报"), so the kind's name is its own text. */
 const before = (phrase: string, noun: string) => phrase.slice(0, -noun.length);
 
 function Masthead({ report, index }: { report: ReportDetail; index: ReportNavigationEntry[] }) {
-  const mark = dateMark(report.kind, report.key);
+  const mark = dateMark(report.key);
   const label = KIND_LABEL[report.kind];
   return (
     <header className="pt-5 lg:pt-0">
       <div className="flex items-center justify-between gap-4 text-[12px] text-ink-4">
-        <span className="num">{dateLine(report.kind, report.key)}</span>
+        <span className="num">{dateLine(report.key)}</span>
         <span className="hidden tracking-[0.3em] @[640px]:inline">{MOTTO[report.kind]}</span>
         <span>{EDITION[report.kind]}</span>
       </div>
@@ -43,7 +44,7 @@ function Masthead({ report, index }: { report: ReportDetail; index: ReportNaviga
         <div className="flex min-w-0 flex-col justify-center">
           <h1 id="report-start" className="scroll-mt-[calc(var(--bar-h)+1.5rem)]">
             <span className="sr-only">
-              {before(withSubject(label), label)}{label} · {dateLine(report.kind, report.key)}
+              {before(withSubject(label), label)}{label} · {dateLine(report.key)}
             </span>
             <Nameplate which={report.kind} className="block h-[44px] w-auto @[520px]:h-[58px] @[880px]:h-[74px] @[1040px]:h-[84px]" />
           </h1>
@@ -126,24 +127,25 @@ function Related({ items, className = "" }: { items: ReportCitation[]; className
   );
 }
 
-/** How many more sources reported the entry's event, and whether an earlier daily covered it. */
+const followUpNote = (date: string) => `${monthDay(date)}已经报道过这件事，这里是新进展`;
+
+/** How many more sources reported the entry's event, and whether an earlier issue covered it. */
 function Coverage({ c }: { c: ReportCitation }) {
   return (
     <>
       {!!c.otherSources && <span className="shrink-0 text-ink-4">另有 {c.otherSources} 家信源报道</span>}
-      {c.followUp && <Badge title={`${monthDay(c.followUp)}的日报报道过这件事，这里是新进展`}>跟进</Badge>}
+      {c.followUp && <Badge title={followUpNote(c.followUp)}>跟进</Badge>}
     </>
   );
 }
 
 /** One story: source, headline, at most four lines of summary, and the original at the foot. */
-function Story({ c, dated, className = "" }: { c: ReportCitation; dated: boolean; className?: string }) {
+function Story({ c, className = "" }: { c: ReportCitation; className?: string }) {
   return (
     <article id={anchorOf(c) ?? undefined} className={`flex min-w-0 scroll-mt-[calc(var(--bar-h)+1.5rem)] flex-col py-6 ${className}`}>
       <div className="flex items-center gap-2 text-[12px] text-ink-3">
         <Source c={c} />
         {c.available && <Coverage c={c} />}
-        {dated && c.publishedAt && <span className="num ml-auto shrink-0 text-ink-4">{shortDay(c.publishedAt)}</span>}
       </div>
       {c.available ? (
         <>
@@ -231,7 +233,7 @@ function pagesOf(report: ReportDetail, leadStory: ReportCitation | null): Page[]
 
 /**
  * The lead's picture; landscape pictures are cropped to between 16:10 and 2:1. A picture that is not
- * the lead's own (a weekly or monthly's, from its first highlight) is captioned with its story.
+ * the lead's own (a special's, from its most important cited report) is captioned with its story.
  */
 function LeadPicture({ cover, onError, priority = false, className = "" }: { cover: NonNullable<ReportDetail["cover"]>; onError: () => void; priority?: boolean; className?: string }) {
   const ratio = cover.width && cover.height ? cover.width / cover.height : 16 / 9;
@@ -249,41 +251,25 @@ function LeadPicture({ cover, onError, priority = false, className = "" }: { cov
   );
 }
 
-/**
- * A weekly's or monthly's overview. Such an issue leading with an event sets the event on its front
- * page as a daily does, so the overview opens the issue above it.
- */
-function Overview({ text }: { text: string }) {
-  return (
-    <section aria-label="本期导读" className="border-b border-line py-7 @[880px]:py-9">
-      <Kicker>本期导读</Kicker>
-      <p className="mt-4 max-w-[46em] text-[16.5px] leading-[1.9] text-ink-2 @[560px]:text-justify @[880px]:text-[17.5px]">{text}</p>
-    </section>
-  );
-}
-
 /** The front page: the lead beside a column of today's highlights and the index of pages. */
 function FrontPage({ report, pages, leadStory, count }: { report: ReportDetail; pages: Page[]; leadStory: ReportCitation | null; count: number }) {
-  const daily = report.kind === "daily";
-  // A weekly or monthly leading with an event: the event's own summary; its overview stands above (Overview).
-  const byEvent = daily || !!leadStory;
   // A picture that fails to load is dropped, and the lead is set as if it had none.
   const [broken, setBroken] = useState<string | null>(null);
   const cover = report.cover && report.cover.url !== broken ? report.cover : null;
   // A landscape picture opens the lead above its headline; a squarer one sits beside the paragraph.
   const wide = !cover?.width || !cover.height || cover.width / cover.height >= 1.25;
-  const title = report.lead?.title ?? leadStory?.title ?? headline(report.kind, report.key, count);
-  const dek = daily || !leadStory ? (report.lead?.leadParagraph ?? leadStory?.summary ?? report.overview) : leadStory.summary;
+  const title = report.lead?.title ?? leadStory?.title ?? headline(report.kind, count);
+  const dek = report.lead?.leadParagraph ?? leadStory?.summary ?? report.overview;
   const highlights = report.highlights.filter((h) => !leadStory || keyOf(h) !== keyOf(leadStory)).slice(0, 3);
   const inPage = new Set(pages.flatMap((p) => p.items.map((c) => c.itemId)).filter(Boolean));
-  const period = daily ? "今日" : report.kind === "weekly" ? "本周" : "本月";
+  const period = report.kind === "evening" ? "今晚" : "今日";
   const index = [...pages.map((p) => ({ id: p.id, label: p.label, n: `${p.items.length} 件` })), ...(report.flashes.length > 0 ? [{ id: "s-flash", label: "快讯", n: `${report.flashes.length} 条` }] : [])];
 
   return (
     <section aria-label="头版" className="grid @[880px]:grid-cols-[minmax(0,1fr)_300px] @[1040px]:grid-cols-[minmax(0,1fr)_340px]">
       {/* On a phone the headline comes before a landscape picture, so the first screen carries the news. */}
       <div id={leadStory ? (anchorOf(leadStory) ?? undefined) : undefined} className="flex min-w-0 scroll-mt-[calc(var(--bar-h)+1.5rem)] flex-col py-7 @[880px]:border-r @[880px]:border-line @[880px]:py-10 @[880px]:pr-10">
-        <Kicker>{byEvent ? "头条" : "本期导读"}</Kicker>
+        <Kicker>头条</Kicker>
         {cover && wide && <LeadPicture cover={cover} onError={() => setBroken(cover.url)} priority className="order-2 mt-5 @[560px]:order-1" />}
         <h2 className="order-1 mt-4 text-[32px] font-black leading-[1.28] tracking-[-0.03em] text-ink [text-wrap:balance] @[520px]:text-[40px] @[560px]:order-2 @[1040px]:text-[48px] @[1040px]:leading-[1.22]">
           {leadStory?.itemId ? (
@@ -388,7 +374,7 @@ function Neighbours({ report, index }: { report: ReportDetail; index: ReportNavi
   const cell = "group flex min-w-0 flex-col py-6";
   const title = "mt-2.5 line-clamp-2 text-[16px] font-bold leading-[1.5] text-ink transition-colors group-hover:text-accent @[880px]:text-[18px]";
   return (
-    <nav aria-label={report.kind === "daily" ? "前后日报" : "前后各期"} className="mt-16 grid grid-cols-2 border-y border-line-strong">
+    <nav aria-label={`前后各期${KIND_LABEL[report.kind]}`} className="mt-16 grid grid-cols-2 border-y border-line-strong">
       {report.prev ? (
         <Link to={reportPath(report.kind, report.prev)} className={`${cell} pr-5 @[880px]:pr-10`}>
           <span className="inline-flex items-center gap-1 text-[12px] text-ink-4">
@@ -434,8 +420,99 @@ function History({ report, index }: { report: ReportDetail; index: ReportNavigat
   );
 }
 
-/** The issue's pages for the phone outline: the front page, each page under its number, then 快讯. */
+/** Under a special's chapter: the reports it cites, each with its date, source, page and original. */
+function Cited({ items }: { items: ReportCitation[] }) {
+  return (
+    <div className="mt-6 well rounded-panel px-5 py-4">
+      <div className="text-[12px] font-semibold tracking-[0.2em] text-ink-4">本章引用</div>
+      <ul className="mt-2">
+        {items.map((c) => (
+          <li key={keyOf(c)} className="flex gap-3 border-b border-line py-2.5 text-[13.5px] leading-[1.6] last:border-b-0">
+            <span className="num w-10 shrink-0 pt-px text-[12px] text-ink-4">{c.available && c.publishedAt ? shortDay(c.publishedAt) : ""}</span>
+            <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
+              {!c.available ? (
+                <span className="text-ink-4"><span className="line-through">{c.title}</span> · {WITHDRAWN_NOTE}</span>
+              ) : (
+                <>
+                  {c.itemId ? (
+                    <IntentLink viewTransition to={`/items/${c.itemId}`} className="text-ink-2 transition-colors hover:text-accent">{c.title}</IntentLink>
+                  ) : (
+                    <span className="text-ink-2">{c.title}</span>
+                  )}
+                  <span className="ml-2 inline-flex items-center gap-2 text-[12px] text-ink-4">
+                    {c.sourceName}
+                    <Original c={c} />
+                  </span>
+                </>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * A special: its topic, title and dek beside the chapter list, the picture of its most important report,
+ * then each chapter's paragraphs with the reports it cites. A chapter citing a withdrawn report keeps its
+ * heading and citations without its text.
+ */
+function SpecialArticle({ report }: { report: ReportDetail }) {
+  const [broken, setBroken] = useState<string | null>(null);
+  const cover = report.cover && report.cover.url !== broken ? report.cover : null;
+  return (
+    <section aria-label="正文" className="grid @[1040px]:grid-cols-[minmax(0,1fr)_260px] @[1040px]:gap-12">
+      <div className="min-w-0 py-7 @[880px]:py-10">
+        <Kicker>
+          专题报{report.topic && <> · <Link to={`/topics/${report.topic.slug}`} className="transition-colors hover:text-accent">{report.topic.name}</Link></>}
+        </Kicker>
+        <h2 className="mt-4 text-[30px] font-black leading-[1.3] tracking-[-0.03em] text-ink [text-wrap:balance] @[520px]:text-[38px] @[1040px]:text-[44px] @[1040px]:leading-[1.25]">
+          {report.lead?.title ?? report.title}
+        </h2>
+        {report.overview && <p className="mt-6 max-w-[42em] text-[17px] font-medium leading-[1.9] text-ink-2 @[880px]:text-[18px]">{report.overview}</p>}
+        {cover && <LeadPicture cover={cover} onError={() => setBroken(cover.url)} priority className="mt-7" />}
+        {report.sections.map((s, i) => (
+          <section key={`c-${i + 1}`} id={`c-${i + 1}`} aria-labelledby={`c-${i + 1}-t`} className="scroll-mt-[calc(var(--bar-h)+1.5rem)] pt-12">
+            <h3 id={`c-${i + 1}-t`} className="flex items-baseline gap-3 border-b border-line-strong pb-3">
+              <span className="num text-[22px] font-black leading-none tracking-[-0.03em] text-accent @[880px]:text-[26px]">{pad(i + 1)}</span>
+              <span className="text-[22px] font-black leading-[1.3] tracking-[-0.02em] text-ink @[880px]:text-[26px]">{s.label}</span>
+            </h3>
+            {s.paragraphs?.length ? (
+              <div className="mt-5 max-w-[42em] space-y-5">
+                {s.paragraphs.map((text, j) => (
+                  <p key={j} className="text-[16.5px] leading-[2] text-ink-2 [overflow-wrap:anywhere] @[560px]:text-justify @[880px]:text-[17px]">{text}</p>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-5 text-[14px] leading-relaxed text-ink-4">这一章引用的报道已按来源方要求下架或调整展示方式，正文不再展示。</p>
+            )}
+            {s.items.length > 0 && <Cited items={s.items} />}
+          </section>
+        ))}
+      </div>
+      <aside className="hidden @[1040px]:block">
+        <nav aria-label="本期章节" className="sticky top-8 py-10">
+          <Kicker>本期章节</Kicker>
+          <ol className="mt-3">
+            {report.sections.map((s, i) => (
+              <li key={`n-${i + 1}`}>
+                <a href={`#c-${i + 1}`} className="group flex items-baseline gap-2 py-1.5 text-[13.5px]">
+                  <span className="num w-7 shrink-0 text-[14px] font-bold text-ink">{pad(i + 1)}</span>
+                  <span className="min-w-0 flex-1 text-ink-2 transition-colors group-hover:text-accent">{s.label}</span>
+                </a>
+              </li>
+            ))}
+          </ol>
+        </nav>
+      </aside>
+    </section>
+  );
+}
+
+/** The issue's pages for the phone outline: a daily's front page, each page under its number, then 快讯; a special's chapters. */
 export function reportOutline(report: ReportDetail): OutlineEntry[] {
+  if (report.kind === "special") return report.sections.map((s, i) => ({ id: `c-${i + 1}`, text: s.label, level: 2, mark: pad(i + 1) }));
   const pages = pagesOf(report, leadStoryOf(report));
   if (pages.length === 0 && report.flashes.length === 0) return [];
   return [
@@ -447,19 +524,19 @@ export function reportOutline(report: ReportDetail): OutlineEntry[] {
 
 export function ReportPaper({ report, index }: { report: ReportDetail; index: ReportNavigationEntry[] }) {
   const daily = report.kind === "daily";
-  const leadStory = leadStoryOf(report);
-  const pages = pagesOf(report, leadStory);
+  const special = report.kind === "special";
+  const leadStory = special ? null : leadStoryOf(report);
+  const pages = special ? [] : pagesOf(report, leadStory);
   const count = pages.reduce((sum, p) => sum + p.items.length, 0) + (leadStory ? 1 : 0);
   return (
     <article className="@container">
       <Masthead report={report} index={index} />
-      {count === 0 && report.flashes.length === 0 ? (
+      {special ? (
+        <SpecialArticle report={report} />
+      ) : count === 0 && report.flashes.length === 0 ? (
         <p className="py-16 text-center text-[14px] text-ink-4">本期没有入选内容。</p>
       ) : (
-        <>
-          {!daily && leadStory && report.overview && <Overview text={report.overview} />}
-          <FrontPage report={report} pages={pages} leadStory={leadStory} count={count} />
-        </>
+        <FrontPage report={report} pages={pages} leadStory={leadStory} count={count} />
       )}
 
       {pages.map((p, i) => (
@@ -470,7 +547,7 @@ export function ReportPaper({ report, index }: { report: ReportDetail; index: Re
               {p.summary}
             </p>
           )}
-          <Rows items={p.items}>{(c, cell) => <Story key={`${p.id}-${keyOf(c)}`} c={c} dated={!daily} className={cell} />}</Rows>
+          <Rows items={p.items}>{(c, cell) => <Story key={`${p.id}-${keyOf(c)}`} c={c} className={cell} />}</Rows>
         </SectionPage>
       ))}
 
@@ -494,7 +571,7 @@ export function ReportPaper({ report, index }: { report: ReportDetail; index: Re
                     <span className="text-ink">{f.title}</span>
                   )}
                   {f.available && <span className="ml-2 text-[12px] text-ink-4">{f.sourceName}</span>}
-                  {f.available && f.followUp && <Badge className="ml-2 align-[1px]" title={`${monthDay(f.followUp)}的日报报道过这件事，这里是新进展`}>跟进</Badge>}
+                  {f.available && f.followUp && <Badge className="ml-2 align-[1px]" title={followUpNote(f.followUp)}>跟进</Badge>}
                 </span>
               </li>
             ))}
@@ -507,7 +584,7 @@ export function ReportPaper({ report, index }: { report: ReportDetail; index: Re
       <footer className="py-10 text-center">
         <div className="text-[13px] font-semibold tracking-[0.6em] text-ink-4">（本期完）</div>
         <p className="mt-3 text-[12px] text-ink-4">
-          {`${SITE.name} `}{KIND_LABEL[report.kind]}由编辑系统根据公开来源自动{daily ? "编辑" : "综合"}，每条均附原文 ·{" "}
+          {`${SITE.name} `}{KIND_LABEL[report.kind]}{special ? "由模型根据公开报道撰写，事实以每章引用的原文为准" : "由编辑系统根据公开来源自动编辑，每条均附原文"} ·{" "}
           <Link to={daily ? "/daily/archive" : "#report-history"} viewTransition={daily} className="font-medium text-ink-3 transition-colors hover:text-accent">
             {daily ? "日报合订本" : `往期${KIND_LABEL[report.kind]}`}
           </Link>

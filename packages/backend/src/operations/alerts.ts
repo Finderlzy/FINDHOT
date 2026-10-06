@@ -99,19 +99,20 @@ export async function collectFindings(now = Date.now()): Promise<Finding[]> {
         since: p!.waiting >= 10 && p!.oldest ? p!.oldest : undefined,
       });
     }
-    // The daily report is composed from its edition time, and tried again every half hour until it exists:
-    // two hours later it is overdue.
-    if (now >= beijingAt(beijingDate(now), EDITION_TIMES.daily).getTime() + 2 * 3600_000) {
-      const [r] = await sql`SELECT 1 FROM reports WHERE kind = 'daily' AND key = ${beijingDate(now)}`;
+    // The daily and the evening are composed from their edition times, and tried again every half hour
+    // until they exist: two hours later each is overdue.
+    for (const [kind, name] of [["daily", "日报"], ["evening", "晚报"]] as const) {
+      if (now < beijingAt(beijingDate(now), EDITION_TIMES[kind]).getTime() + 2 * 3600_000) continue;
+      const [r] = await sql`SELECT 1 FROM reports WHERE kind = ${kind} AND key = ${beijingDate(now)}`;
       if (!r) {
         out.push({
-          key: "report.daily",
+          key: `report.${kind}`,
           level: "now",
-          title: "今天的日报还没生成",
-          impact: "读者看不到今天的日报",
+          title: `今天的${name}还没生成`,
+          impact: `读者看不到今天的${name}`,
           heals: "系统每半小时补做一次，到现在还没成功",
           action: "转给 AI 处理",
-          detail: `reports daily ${beijingDate(now)} 不存在；看 reports.compose 的运行记录`,
+          detail: `reports ${kind} ${beijingDate(now)} 不存在；看 reports.compose 的运行记录`,
         });
       }
     }

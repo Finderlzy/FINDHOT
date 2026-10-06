@@ -6,6 +6,7 @@ import { sql } from "../db.ts";
 import { guardedFetch } from "../lib/http-fetch.ts";
 import { stripTags } from "../lib/text.ts";
 import { isVideoPageUrl } from "../lib/video-url.ts";
+import { serverModules } from "../modules.ts";
 import { jinaRead } from "../providers/jina.ts";
 import { BudgetExceededError } from "../providers/receipts.ts";
 import { getArticle } from "../providers/socialdata.ts";
@@ -30,6 +31,10 @@ const MIN_BODY_CHARS = 200;
 /** A publication time the page prints without a zone is read in utcOffset (the source's articleUtcOffset). */
 export function readable(html: string, url: string, utcOffset?: string): ExtractedBody | null {
   if (isVideoPageUrl(url)) return null;
+  for (const m of serverModules()) {
+    const body = m.bodyFromPage?.(html, url);
+    if (body) return cleaned(body, url, null, 1);
+  }
   const { document } = parseHTML(html);
   try {
     const base = document.createElement("base");
@@ -40,9 +45,17 @@ export function readable(html: string, url: string, utcOffset?: string): Extract
   }
   const article = new Readability(document as unknown as ConstructorParameters<typeof Readability>[0], { charThreshold: MIN_BODY_CHARS, keepClasses: false }).parse();
   if (!article?.content) return null;
-  const clean = trimTrailingChrome(sanitizeBody(article.content, url));
+  return cleaned(article.content, url, parseLooseDate(article.publishedTime, utcOffset));
+}
+
+/**
+ * The body as stored: sanitized, its trailing chrome trimmed, and long enough to be an article. A body a module
+ * reads from the page's own marker may be a short news flash; Readability's guess must be longer to be trusted.
+ */
+function cleaned(content: string, url: string, publishedAt: Date | null, minChars = MIN_BODY_CHARS): ExtractedBody | null {
+  const clean = trimTrailingChrome(sanitizeBody(content, url));
   const text = stripTags(clean);
-  if (text.length < MIN_BODY_CHARS) return null;
+  if (text.length < minChars) return null;
   const images: ExtractedBody["images"] = [];
   for (const m of clean.matchAll(/<img\b[^>]*\bsrc="([^"]+)"[^>]*>/gi)) {
     const w = /\bwidth="(\d+)"/.exec(m[0]);
@@ -50,7 +63,7 @@ export function readable(html: string, url: string, utcOffset?: string): Extract
     images.push({ kind: "image", url: m[1]!.replace(/&amp;/g, "&"), width: w ? Number(w[1]) : null, height: h ? Number(h[1]) : null });
     if (images.length >= 12) break;
   }
-  return { html: clean, text, images, via: "readability", publishedAt: parseLooseDate(article.publishedTime, utcOffset) };
+  return { html: clean, text, images, via: "readability", publishedAt };
 }
 
 export async function extractFromUrl(url: string, subject: string, utcOffset?: string): Promise<ExtractedBody | null> {

@@ -71,15 +71,15 @@ try {
 
   // Exercise the remaining tools without depending on seeded reports/stories.
   await call(T.daily, { date: "2026-02-30" }, { error: true, code: "invalid_request" });
-  await call(T.weekly, { week: "2026-W54" }, { error: true, code: "invalid_request" });
-  await call(T.monthly, { month: "2026-13" }, { error: true, code: "invalid_request" });
+  await call(T.evening, { date: "2026-02-30" }, { error: true, code: "invalid_request" });
+  await call(T.special, { date: "2026-13-01" }, { error: true, code: "invalid_request" });
   await call(T.story, { public_id: "__mcp_check_missing__", report_limit: 3 }, { error: true, code: "not_found" });
 
   // SDK/server schema validation must reject values outside the advertised input contract.
   await call(T.latest, { limit: 99 }, { error: true });
 
   if (full) {
-    for (const name of [T.daily, T.weekly, T.monthly]) await call(name, {});
+    for (const name of [T.daily, T.evening, T.special]) await call(name, {});
     const hot = await call(T.hot, { limit: 1 });
     const storyId = ((hot.structuredContent as { items?: Array<{ links?: { story?: string } }> }).items?.[0]?.links?.story ?? "").split("/").pop();
     if (!storyId) throw new Error("--full needs a populated public story");

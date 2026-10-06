@@ -1,29 +1,28 @@
 // Issue numbers ("第 N 期") count every existing issue of a kind; the navigation keeps only the newest
 // 400. Failure cases: the 401st issue numbered from the truncated index (the newest shows 400, older
 // ones none); the index, detail, navigation, latest page and month answers disagreeing; a new issue or
-// a revision renumbering the older ones; dailies, weeklies and monthlies sharing one count; the v1
+// a revision renumbering the older ones; dailies, evenings and specials sharing one count; the v1
 // report gaining the field.
 import { tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import type { ReportKind } from "@aihot/contracts/site";
-import { isoWeekLabel } from "@aihot/contracts/time";
 import { closeDb, sql } from "@aihot/backend/db";
 import { listReports, loadReport, loadReportMonth, loadReportNavigation, reportIndexRows, v1Daily } from "@aihot/backend/publication/reports";
 import { buildApp } from "../apps/api/src/app.ts";
 
 const T = tag();
 const app = await buildApp();
-const baseline = { daily: 0, weekly: 0, monthly: 0 };
+const baseline = { daily: 0, evening: 0, special: 0 };
 let year: number;
 let daily: string[];
-let weekly: string[];
-let monthly: string[];
+let evening: string[];
+let special: string[];
 const day = (offset: number) => new Date(Date.UTC(year, 0, 4 + offset)).toISOString().slice(0, 10);
 
 async function insert(kind: ReportKind, keys: string[]) {
   const citation = { title: `测试条目 ${T}`, summary: `DETAIL_ONLY_${T}` };
-  const content = { fixtureTag: T, overview: `DETAIL_ONLY_${T}`, ...(kind === "daily" ? { sections: [{ label: "测试", items: [citation] }] } : { themes: [{ heading: "测试", storyRefs: [citation] }] }) };
+  const content = { fixtureTag: T, overview: `DETAIL_ONLY_${T}`, ...(kind === "special" ? { themes: [{ heading: "测试", storyRefs: [citation] }] } : { sections: [{ label: "测试", items: [citation] }] }) };
   await sql`INSERT INTO reports ${sql(keys.map((key) => ({
     kind, key, window_start: new Date("2026-01-01T00:00:00Z"), window_end: new Date("2026-01-02T00:00:00Z"),
     generated_at: new Date("2026-01-02T00:00:00Z"), origin: "manual", content: sql.json(content),
@@ -41,8 +40,8 @@ before(async () => {
   year = Math.max(2030, ...rows.map((r) => r.max_year + 2));
   for (const row of rows) baseline[row.kind] = row.n;
   daily = Array.from({ length: 407 }, (_, i) => day(i * 2));
-  weekly = Array.from({ length: 401 }, (_, i) => isoWeekLabel(day(i * 7)));
-  monthly = [`${year}-01`, `${year}-03`, `${year + 1}-01`];
+  evening = Array.from({ length: 401 }, (_, i) => day(i * 7));
+  special = [day(0), day(60), day(400)];
 });
 after(async () => {
   await sql`DELETE FROM reports WHERE content->>'fixtureTag' = ${T}`;
@@ -84,7 +83,7 @@ test("issue numbers count the whole series across the navigation's 400-issue lim
     assert.ok(navigation.body.items.some((entry: { title?: string }) => entry.title === undefined), "closed months still leave out their titles");
     assert.equal((await loadReportNavigation("daily", key))[0]!.issueNumber, expected);
     assert.equal((await loadReportMonth("daily", key.slice(0, 7)))[0]!.issueNumber, expected);
-    assert.ok(!("issueNumber" in (await v1Daily(key))!.report), "the v1 daily keeps its fields");
+    assert.ok(!("issueNumber" in (await v1Daily("daily", key))!.report), "the v1 daily keeps its fields");
   });
 
   await t.test("new issues and revisions leave older numbers alone", async () => {
@@ -104,22 +103,23 @@ test("issue numbers count the whole series across the navigation's 400-issue lim
     assert.equal((await loadReport("daily", key))!.issueNumber, baseline.daily + 100, "a revision is the same issue");
   });
 
-  await t.test("weeklies and monthlies are numbered on their own", async () => {
-    await insert("weekly", weekly.slice(0, 400));
-    await insert("monthly", monthly.slice(0, 1));
+  await t.test("evenings and specials are numbered on their own", async () => {
+    await insert("evening", evening.slice(0, 400));
+    await insert("special", special.slice(0, 1));
     refresh();
-    assert.equal((await listReports("weekly"))[0]!.issueNumber, baseline.weekly + 400);
-    assert.equal((await loadReport("monthly", monthly[0]!))!.issueNumber, baseline.monthly + 1);
-    await insert("weekly", weekly.slice(400));
-    await insert("monthly", monthly.slice(1));
+    assert.equal((await listReports("evening"))[0]!.issueNumber, baseline.evening + 400);
+    assert.equal((await loadReport("special", special[0]!))!.issueNumber, baseline.special + 1);
+    await insert("evening", evening.slice(400));
+    await insert("special", special.slice(1));
     refresh();
-    assert.equal((await listReports("weekly")).length, 400);
-    assert.equal((await listReports("weekly"))[0]!.issueNumber, baseline.weekly + 401);
-    assert.equal((await loadReport("weekly", weekly[0]!))!.issueNumber, baseline.weekly + 1);
-    for (let i = 0; i < monthly.length; i += 1) assert.equal((await loadReport("monthly", monthly[i]!))!.issueNumber, baseline.monthly + i + 1);
-    const crossing = weekly.findIndex((key, i) => i > 0 && key.slice(0, 4) !== weekly[i - 1]!.slice(0, 4));
+    assert.equal((await listReports("evening")).length, 400);
+    assert.equal((await listReports("evening"))[0]!.issueNumber, baseline.evening + 401);
+    assert.equal((await loadReport("evening", evening[0]!))!.issueNumber, baseline.evening + 1);
+    assert.equal((await loadReport("daily", daily[0]!))!.issueNumber, baseline.daily + 1, "an evening on the same date is not counted with the dailies");
+    for (let i = 0; i < special.length; i += 1) assert.equal((await loadReport("special", special[i]!))!.issueNumber, baseline.special + i + 1);
+    const crossing = evening.findIndex((key, i) => i > 0 && key.slice(0, 4) !== evening[i - 1]!.slice(0, 4));
     assert.ok(crossing > 0);
-    assert.equal((await loadReport("weekly", weekly[crossing]!))!.issueNumber, baseline.weekly + crossing + 1, "a new year goes on counting");
+    assert.equal((await loadReport("evening", evening[crossing]!))!.issueNumber, baseline.evening + crossing + 1, "a new year goes on counting");
   });
 
   await t.test("an issue added or deleted before another moves its number", async () => {

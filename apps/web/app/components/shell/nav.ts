@@ -57,10 +57,10 @@ export function sidebar(): Array<{ title: string; items: NavItem[] }> {
   return [...sections, more];
 }
 
-/** A sidebar entry is lit on its pages; 日报 also covers weekly and monthly reports. */
+/** A sidebar entry is lit on its pages; 日报 also covers evenings and specials. */
 export function sidebarIsActive(item: NavItem, pathname: string): boolean {
   if (item.end) return pathname === item.to;
-  if (item.to === "/daily") return /^\/(daily|weekly|monthly)(\/|$)/.test(pathname);
+  if (item.to === "/daily") return /^\/(daily|evening|special)(\/|$)/.test(pathname);
   return pathname === item.to || pathname.startsWith(`${item.to}/`);
 }
 

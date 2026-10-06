@@ -10,15 +10,12 @@ import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import type { ReportDetail, ReportKind, ReportNavigationEntry } from "@aihot/contracts/site";
-import { isoWeekLabel } from "@aihot/contracts/time";
 import { issueNumber, periodGrid } from "../app/features/report/format.ts";
 
-const kinds: ReportKind[] = ["daily", "weekly", "monthly"];
-const keys = Object.fromEntries(kinds.map((kind) => [kind, Array.from({ length: 405 }, (_, i) => {
-  if (kind === "monthly") return new Date(Date.UTC(2020, i, 1)).toISOString().slice(0, 7);
-  const day = new Date(Date.UTC(2020, 0, 6 + i * (kind === "weekly" ? 7 : 1))).toISOString().slice(0, 10);
-  return kind === "weekly" ? isoWeekLabel(day) : day;
-})])) as Record<ReportKind, string[]>;
+const kinds: ReportKind[] = ["daily", "evening", "special"];
+/** Dailies and evenings every day, specials every few days. */
+const keys = Object.fromEntries(kinds.map((kind) => [kind, Array.from({ length: 405 }, (_, i) =>
+  new Date(Date.UTC(2020, 0, 6 + i * (kind === "special" ? 3 : 1))).toISOString().slice(0, 10))])) as Record<ReportKind, string[]>;
 /** The navigation as the api sends it: the newest 400 issues, each with its number in the whole series. */
 const index = (kind: ReportKind): ReportNavigationEntry[] => keys[kind].map((key, i) => ({ key, issueNumber: i + 1, title: `第${i + 1}期` })).reverse().slice(0, 400);
 function report(kind: ReportKind, key: string): ReportDetail {
@@ -35,7 +32,7 @@ const api = createServer((req, res) => {
   res.setHeader("Content-Type", "application/json");
   if (path === "/api/site/meta") return res.end(JSON.stringify({ changelogVersion: "2026-09-28T12:00" }));
   if (path === "/api/site/reports/daily") return res.end(JSON.stringify({ kind: "daily", items: index("daily").map((entry) => ({ ...entry, count: 1 })) }));
-  const match = /^\/api\/site\/reports\/(daily|weekly|monthly)\/(.+)$/.exec(path);
+  const match = /^\/api\/site\/reports\/(daily|evening|special)\/(.+)$/.exec(path);
   if (match) {
     const kind = match[1] as ReportKind;
     const key = match[2]!;
@@ -105,14 +102,14 @@ for (const kind of kinds) {
 
   test(`the ${kind} calendar labels this issue with its own number and makes up none for others`, () => {
     const first = keys[kind][0]!;
-    const { cells } = periodGrid(kind, first, index(kind), 1);
+    const { cells } = periodGrid(first, index(kind), 1);
     const current = cells.find((cell) => cell.key === first)!;
     assert.equal(current.state, "current");
     assert.match(current.label, /第 1 期/);
     const unlisted = cells.find((cell) => cell.key === keys[kind][1])!;
     assert.doesNotMatch(unlisted.label, /第 \d+ 期/, "an issue the navigation does not list gets no number");
     assert.equal(issueNumber(index(kind), keys[kind].at(-1)!), 405);
-    const stale = periodGrid(kind, first, [{ key: first, issueNumber: 9 }], 10);
+    const stale = periodGrid(first, [{ key: first, issueNumber: 9 }], 10);
     assert.match(stale.cells.find((cell) => cell.key === first)!.label, /第 10 期/, "the report's own number wins over an older navigation");
   });
 }

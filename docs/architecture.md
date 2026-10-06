@@ -7,7 +7,7 @@ flowchart LR
   J --> G["归组<br/>事件 · 热度 · 综述"]
   J --> P["公开读取层<br/>publication/"]
   G --> P
-  P --> R["日报 · 周报 · 月报"]
+  P --> R["日报 · 晚报 · 专题报"]
   P --> O["网页 · RSS · API v1 · MCP · llms.txt · 站点地图 · 分享图"]
 ```
 
@@ -49,7 +49,7 @@ flowchart LR
 | `packages/backend/src/editorial/` | 判断与写作：`analyze.ts`（流程）、`prompts.ts`（读提示词）、`models.ts`（每一步用哪个模型） |
 | `packages/backend/src/events/` | 事件归组、热度、事件综述 |
 | `packages/backend/src/publication/` | 公开读取层 |
-| `packages/backend/src/reports/` | 日报、周报、月报 |
+| `packages/backend/src/reports/` | 日报、晚报、专题报 |
 | `packages/backend/src/providers/` | 模型、向量、X、公众号、Jina 的调用，回执与预算 |
 | `packages/backend/src/notify/` | 飞书推送 |
 | `packages/backend/src/operations/` | 告警、备份、清理、IndexNow |
@@ -88,10 +88,10 @@ flowchart LR
 
 | 地址 | 内容 |
 |---|---|
-| `/` `/all` `/hot` `/topics` `/daily` `/weekly` `/monthly` | 精选、全部动态、热门事件、主题、日报周报月报 |
-| `/feed.xml` `/feed/full.xml` `/feed/all.xml` `/feed/daily.xml` `/feed/weekly.xml` `/feed/monthly.xml` | RSS：精选、精选全文、全部、日报、周报、月报；另有按分类的 `/feed/category/<key>.xml` 和分类全文版 `/feed/full/category/<key>.xml` |
+| `/` `/all` `/hot` `/topics` `/daily` `/evening` `/special` | 精选、全部动态、热门事件、主题、日报、晚报、专题报 |
+| `/feed.xml` `/feed/full.xml` `/feed/all.xml` `/feed/daily.xml` `/feed/evening.xml` `/feed/special.xml` | RSS：精选、精选全文、全部、日报、晚报、专题报；另有按分类的 `/feed/category/<key>.xml` 和分类全文版 `/feed/full/category/<key>.xml` |
 | `/api/v1/` | 公开 API，文档在 `/openapi-v1.json`；给 Agent 读的 Markdown 从 `/api/v1/agent` 开始；说明页在 `/agent` |
-| `/api/mcp` | MCP 服务：最新、搜索、热点、事件、日报、周报、月报各一个工具，工具名前缀是 `site/site.ts` 的 `mcpPrefix` |
+| `/api/mcp` | MCP 服务：最新、搜索、热点、事件、日报、晚报、专题报各一个工具，工具名前缀是 `site/site.ts` 的 `mcpPrefix` |
 | `/llms.txt` `/sitemap.xml` `/robots.txt` | 给大模型和搜索引擎的说明（`robots.txt` 等根目录文件在 `site/public/`） |
 | `/admin` | 后台 |
 

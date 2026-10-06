@@ -29,12 +29,12 @@
 - `github`：源码仓库的地址（选填），填了就在侧栏和“我的”页底部显示“GitHub 开源”。
 - `llmsIntro`：`llms.txt` 里一句话介绍下面的一段详细介绍（选填）。
 - `rootIcons`：标准图标以外也放在网站根目录的图标，`site/brand/` 里的文件名（选填）。
-- `EDITION_TIMES`：日报、周报、月报的出刊时间（北京时间）。排程、日报收录的时间窗口、缺期告警和所有提到时间的文案都读它；排程每半小时检查一次，写整点或半点。`EDITION_WHEN` 是由它拼出来、写进句子里的说法（“每天 08:00”“每周一 10:00”“每月 1 日 10:30”），一般不用改。
+- `EDITION_TIMES`：日报、晚报、专题报的出刊时间（北京时间）；日报收前一天晚报出刊以后的消息，晚报收当天日报出刊以后的消息。`SPECIAL_DAYS`：专题报在星期几出（1 是周一）。排程、日报晚报收录的时间窗口、缺期告警和所有提到时间的文案都读它们；排程每半小时检查一次，写整点或半点。`EDITION_WHEN` 是由它们拼出来、写进句子里的说法（“每天 08:00”“每天 20:00”“每周三、六 12:00”），一般不用改。
 - `POLICY`：使用规则和隐私说明两页的名字和简介；`terms.license` 是讲清哪些用途要先取得授权的话，`terms.headers` 是公开接口声明使用规则的响应头（都选填）；`xPostIsFullText` 决定 X 帖子本身的文字算不算全文（算的话，只在信源允许全文时显示）。
 - `ABOUT`：关于页的大标题、四个环节的说明、作者块（可选）、版权说明，以及“使用规则”链接的锚点（`termsAnchor`，选填）。
 - `CARDS`：各页分享图上的文字。
 - `ITEM_COPY`：模型写的那句理由叫什么（`reasonLabel`，默认“推荐理由”），读者在网页和分享图上看不看得到 AI 评分（`showScore`；只管显示，公开 API 和 MCP 照样带分数）。
-- `REPORTS`：日报、周报、月报版面上的说法：报头的出版者一行和旁边的一个词、每种报告页面的描述、一期里的一条怎么称呼（`entry`，默认“件大事”）、报头上其余数字后面的单位、分享图上的条数说法。
+- `REPORTS`：日报、晚报、专题报版面上的说法：报头的出版者一行和旁边的一个词、每种报告页面的描述、一期里的一条怎么称呼（`entry`，默认“件大事”）、报头上其余数字后面的单位、分享图上的条数说法。
 - `ALERTS`、`SOURCE_DEFAULTS`、`COMMUNITY_FEEDS`：告警里随部署而变的说法，后台新建信源时默认展不展示全文，哪些社区站信源按发帖的账号算热度。
 - `ACCESS`：给 Agent 的说明和 `llms.txt` 里的限流说法与建议的 User-Agent；前面的反向代理真的按 IP 限流了，再填 `ratePerMinute`。
 - `ADMIN`：后台几处给管理员的提示（选填）。
@@ -46,15 +46,15 @@
 
 ## 2. 分类、标签和主题：`industry/taxonomy.ts`、`industry/topics.json`
 
-- `CATEGORIES`：首页和“全部动态”的筛选类别。`key` 会出现在网址和接口里（`/all?category=`、`/feed/category/<key>.xml`），上线后不要改；`label` 是显示名；`section` 是日报、周报、月报里的分节（几个类别可以共用一节）；`guide` 写这一类收什么、和相邻类别的边界在哪，结构化时给模型看（总的归类原则在 `prompts/structure.md`）；`commentary: true` 标出评论类（教程、观点）：报过的事件再有这类跟进，即使是当事方自己发的，日报也只放进快讯（除非有 4 家以上信源报道）；`feedLabel` 是分类 RSS 标题里的名字（不写就用 `label`）。要让一类在公开接口、RSS 和 MCP 里并进另一类发布（网页上照样分开），写在 `site.ts` 的 `PUBLIC_CATEGORIES`。
+- `CATEGORIES`：首页和“全部动态”的筛选类别。`key` 会出现在网址和接口里（`/all?category=`、`/feed/category/<key>.xml`），上线后不要改；`label` 是显示名；`section` 是日报、晚报里的分节（几个类别可以共用一节）；`guide` 写这一类收什么、和相邻类别的边界在哪，结构化时给模型看（总的归类原则在 `prompts/structure.md`）；`commentary: true` 标出评论类（教程、观点）：报过的事件再有这类跟进，即使是当事方自己发的，日报也只放进快讯（除非有 4 家以上信源报道）；`feedLabel` 是分类 RSS 标题里的名字（不写就用 `label`）。要让一类在公开接口、RSS 和 MCP 里并进另一类发布（网页上照样分开），写在 `site.ts` 的 `PUBLIC_CATEGORIES`。
 - `RELEASE`：这个行业最受关注的那类发布（AI 行业是新模型），类别和标签都对上才算。日报报头的“N 个新模型”按它数（后台改了分类，已出的日报会重算）；`unit` 是数字后面的说法。没有这样一类的行业设成 `null`，报头就不显示这个数。
-- `PLAIN_TERMS`：周报月报的总述里可以直接写、不必在条目里找到出处的行业通用词（小写）。站名自动算在内。总述写了条目里没有的名字或数字就不用，见 [精选与校准](selection.md)。
+- `PLAIN_TERMS`：专题报里可以直接写、不必在引用的报道里找到出处的行业通用词（小写）。站名自动算在内。专题报写了报道里没有的名字或数字的段落不登，见 [精选与校准](selection.md)。
 - `CATEGORY_TAGS`、`TOPIC_TAGS`、`ENTITY_TAGS`：模型打标签时只能从这里选。第一个标签必须是“分类标签”。`prompts/structure.md` 里还写着 AI 行业的标签规则（比如什么才算“模型发布”），换行业时一起改。
 - `TAG_SYNONYMS`：模型常写的近义词，统一成词表里的写法（比如“融资”记成“行业动态”）。换了词表，这里也换成新词表的近义词。
 - `ENTITIES`：行业里的主要公司或机构，用于“公司”类主题页。`aliases` 给结构化的模型看；`otherNames` 是公司自己的其他称呼（官方账号名、子品牌），把新闻的主体对到公司、判断标题有没有点名这家公司时也认它们。`IDENTITY_LEXICON`、`PUBLISHER_DOMAINS`、`IDENTITY_CONTEXT_ALIASES` 用来防止模型在标题摘要里写进原文没提到的公司：标题摘要里出现的公司，原文里也要出现过；`IDENTITY_CONTEXT_ALIASES` 列出原文里也算提到这家公司的写法（比如官方账号名）。别的行业没有这个需要可以清空。
 - `ITEM_TYPES`：内容类型，和评分提示词里的权重表对应，改了要一起改提示词。
 - `topics.json`：主题目录（`/topics`）。站点启动时读取，改完重新构建（`docker compose up -d --build`）才生效。分三组：`company`（公司与机构）、`field`（方向）、`genre`（内容形态）。`slug` 上线后不要改。
-  - `company` 主题用 `entityId`（`ENTITIES` 的 id）收以这家公司为主体的报道；一篇报道的主体有几家公司时，标题里点了它的名才算。可选：`aliases`（搜索框里只搜这个词，也能找出这家公司的报道）。
+  - `company` 主题用 `entityId`（`ENTITIES` 的 id）收以这家公司为主体的报道；一篇报道的主体有几家公司时，标题里点了它的名才算。可选：`aliases`（搜索框里只搜这个词，也能找出这家公司的报道）。`company` 和 `field` 组的主题都可以当专题报的题目；太宽、讲不成一个故事的（比如一个大国、一个大洲）写 `"special": false`。
   - `field` 和 `genre` 主题用 `tags` 收打了这些标签的报道。
 
 ## 3. 信源：`industry/sources.json`
@@ -89,7 +89,7 @@
 | `structure.md` | 分类、标签、主体公司，判断是一条具体新闻还是讲多件事的综合稿，抽出新闻的事实（谁、做了什么、对什么，附原文出处和前提条件）。页面上的分类和标签、主题页、事件归组和日报都靠它 |
 | `group-*.md` | 事件归组：两篇报道是同一次发生、同一事件的后续，还是两件事；同时判断报道相对精选里已有的内容有没有新信息，没有的不进精选 |
 | `story-digest.md` | 事件页的综述（改之前用 [综述评测](story-digest-evaluation.md) 并排比较） |
-| `report-period.md`、`report-period-sections.md` | 周报月报的总述和栏目导读（日报按规则编排，不用提示词） |
+| `report-special.md` | 专题报的长文（日报、晚报按规则编排，不用提示词） |
 | `translate-*.md` | 全文翻译 |
 
 提示词里用 `{{siteName}}` 指代站名，`{{> 文件名}}` 引用另一份提示词。改提示词不用改代码。
@@ -111,7 +111,7 @@
 - `logo.svg`、`icon.png`（512）、`icon-192.png`、`apple-icon.png`（180）、`favicon.ico`：站点图标。
 - `Logo.tsx`：网页左上角的站名标志，默认用站名文字排出来；有自己的 Logo，把 `Wordmark` 换成你的 SVG，参数保持不变。
 - `wordmark.svg`、`wordmark-dark.svg`（可选）：分享图和海报上的字标，深色版用在深色的分享图上；没有就用站名文字。
-- `nameplates/`：日报、周报、月报页顶部的报头字（比如“AI日报”）。换了行业词以后重新生成：
+- `nameplates/`：日报、晚报、专题报页顶部的报头字（比如“AI日报”）。换了行业词以后重新生成：
   ```bash
   npm pack @fontsource/noto-sans-sc@5.3.0 && tar xzf fontsource-noto-sans-sc-5.3.0.tgz
   node scripts/nameplates.ts package
@@ -123,7 +123,7 @@
 ## 7. 页面文案：`site/pages/`、`site/public/`、`site/changelog.json`
 
 - `pages/terms.md`、`pages/privacy.md`：使用规则和隐私说明。**现在是模板**，上线前按你的实际情况改写，必要时请专业人士看一下。
-- `public/`：网站根目录上的四个固定文件，替换占位符后发布：`robots.txt`、`manifest.webmanifest`（装到手机桌面时的名字和图标）、`openapi-v1.json`（公开 API 的说明），以及可选的 `.well-known/security.txt`（安全问题的联系方式）。只发布这四个文件，放进去的其他文件不会出现在网站上；没有的文件访问时是 404。文件里可以写这些占位符：`{{siteName}}`、`{{siteUrl}}`、`{{description}}`、`{{tagline}}`、`{{locale}}`，出刊时间 `{{dailyTime}}`、`{{weeklyTime}}`、`{{monthlyTime}}`，公开接口版本 `{{version}}`，逗号分隔的公开分类 `{{categoryList}}`；JSON 文件里 `enum` 或 `examples` 列表中的 `"{{categories}}"` 会换成公开分类的 key 列表。
+- `public/`：网站根目录上的四个固定文件，替换占位符后发布：`robots.txt`、`manifest.webmanifest`（装到手机桌面时的名字和图标）、`openapi-v1.json`（公开 API 的说明），以及可选的 `.well-known/security.txt`（安全问题的联系方式）。只发布这四个文件，放进去的其他文件不会出现在网站上；没有的文件访问时是 404。文件里可以写这些占位符：`{{siteName}}`、`{{siteUrl}}`、`{{description}}`、`{{tagline}}`、`{{locale}}`，出刊时间 `{{dailyTime}}`、`{{eveningTime}}`、`{{specialTime}}`，公开接口版本 `{{version}}`，逗号分隔的公开分类 `{{categoryList}}`；JSON 文件里 `enum` 或 `examples` 列表中的 `"{{categories}}"` 会换成公开分类的 key 列表。
 - `changelog.json`：更新日志。自带一条“网站上线”示例，上线前把它的 `date`、`time` 和 `latestVersion` 改成你的上线时间；示例正文里的框架署名（“用 AIHOT 开源框架搭起了这个站”）同样可留可删。新条目写在最前面，把 `latestVersion` 改成它的日期和时间。`kind` 是“更新”“优化”“公告”“下线”之一；要读者一定看到的加 `"urgent": true`（红色，标“重要”）。
 
 ## 8. 模型和部署

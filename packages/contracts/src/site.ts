@@ -259,9 +259,12 @@ export interface StoryDetail {
   topics: TopicLink[];
 }
 
-// Reports (daily / weekly / monthly)
+// Reports (daily / evening / special)
 
-export type ReportKind = "daily" | "weekly" | "monthly";
+/** A daily and an evening each cover half a day and share one shape; a special is one written article. */
+export type ReportKind = "daily" | "evening" | "special";
+export const REPORT_KINDS: readonly ReportKind[] = ["daily", "evening", "special"];
+export const isReportKind = (value: string): value is ReportKind => (REPORT_KINDS as readonly string[]).includes(value);
 
 export interface ReportCitation {
   itemId: string | null;
@@ -280,7 +283,7 @@ export interface ReportCitation {
   otherSources?: number;
   /** A daily entry's other developments of the event, or reports of the launch merged into it (titles only). */
   related?: ReportCitation[];
-  /** A daily entry whose event an earlier daily covered: that issue's date. */
+  /** A daily or evening entry whose event an earlier issue covered: that issue's date. */
   followUp?: string;
 }
 
@@ -296,11 +299,16 @@ export interface ReportDetail {
   leadItemId: string | null;
   overview: string | null;
   highlights: ReportCitation[];
-  /** As edited: daily categories, weekly and monthly themes. */
-  sections: Array<{ label: string; summary: string | null; items: ReportCitation[] }>;
+  /**
+   * As edited: a daily's or evening's categories; a special's chapters, each with its written paragraphs
+   * (none once a report it cites was withdrawn) and the reports it cites.
+   */
+  sections: Array<{ label: string; summary: string | null; paragraphs?: string[]; items: ReportCitation[] }>;
+  /** A special's topic. */
+  topic?: { slug: string; name: string };
   flashes: ReportCitation[];
   /**
-   * The front page's picture: from the lead item (a daily's lead, a weekly or monthly's first highlight),
+   * The front page's picture: from the lead item (a daily's or evening's lead, a special's most important report),
    * else from another public report of that event. Captioned with the story when it is not the lead's own.
    */
   cover: { url: string; srcSet?: string; width: number | null; height: number | null; caption: string | null } | null;

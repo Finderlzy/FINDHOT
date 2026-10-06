@@ -6,8 +6,7 @@ import { serverModules } from "../modules.ts";
 export const siteUrl = (path: string): string => `${config.siteUrl}${path}`;
 export const itemUrl = (id: string): string => siteUrl(`/items/${id}`);
 export const storyUrl = (publicId: string): string => siteUrl(`/story/${publicId}`);
-export const dailyUrl = (date: string): string => siteUrl(`/daily/${date}`);
-export const periodUrl = (kind: "weekly" | "monthly", key: string): string => siteUrl(`/${kind}/${key}`);
+export const reportUrl = (kind: "daily" | "evening" | "special", key: string): string => siteUrl(`/${kind}/${key}`);
 
 /** Where v1 links stories: the site, unless a module names another origin for now (ServerModule.storyOrigin). */
 const storyOrigin = (): string => serverModules().map((m) => m.storyOrigin?.()).find((o) => o) ?? config.siteUrl;

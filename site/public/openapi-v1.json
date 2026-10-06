@@ -3,7 +3,7 @@
   "info": {
     "title": "{{siteName}} Public API",
     "version": "{{version}}",
-    "description": "Anonymous, read-only API for clients and Agents. No API key is required.\n\nPicking an endpoint: answer a person's question inside an AI agent -> read /api/v1/agent, which lists Markdown addresses made for agents. Show recent or today's items -> /api/v1/items. Show what is trending right now -> /api/v1/hot-topics. Show the daily digest -> /api/v1/dailies/latest; the weekly and monthly reports -> /api/v1/weeklies/latest and /api/v1/monthlies/latest. Keep a complete local copy of the selected set -> /api/v1/selected/snapshot once, then /api/v1/selected/changes forever.\n\nHow often to poll: use each response's Cache-Control s-maxage as the minimum interval, and always send If-None-Match: an unchanged resource answers 304 with an empty body. On 429 or 503, honour Retry-After. There is no push channel (no SSE, webhooks or streaming): poll on an interval.\n\nKeep responses small: send Accept-Encoding: gzip or br (curl --compressed). To follow new items, page back only until you reach an id you already have instead of re-reading the whole 7-day window on every poll; to keep every selected item, read /api/v1/selected/snapshot once and then only /api/v1/selected/changes.\n\nReport dates, weeks and months identify fixed editions, but corrections and withdrawn citations can change their public content. Revalidate retained copies with If-None-Match after Cache-Control expires; do not treat a dated report as immutable.\n\nTitles and summaries are generated from third-party sources; the original is always linked in links.original.",
+    "description": "Anonymous, read-only API for clients and Agents. No API key is required.\n\nPicking an endpoint: answer a person's question inside an AI agent -> read /api/v1/agent, which lists Markdown addresses made for agents. Show recent or today's items -> /api/v1/items. Show what is trending right now -> /api/v1/hot-topics. Show the morning digest -> /api/v1/dailies/latest; the evening digest -> /api/v1/evenings/latest; a long article on one country or region -> /api/v1/specials/latest. Keep a complete local copy of the selected set -> /api/v1/selected/snapshot once, then /api/v1/selected/changes forever.\n\nHow often to poll: use each response's Cache-Control s-maxage as the minimum interval, and always send If-None-Match: an unchanged resource answers 304 with an empty body. On 429 or 503, honour Retry-After. There is no push channel (no SSE, webhooks or streaming): poll on an interval.\n\nKeep responses small: send Accept-Encoding: gzip or br (curl --compressed). To follow new items, page back only until you reach an id you already have instead of re-reading the whole 7-day window on every poll; to keep every selected item, read /api/v1/selected/snapshot once and then only /api/v1/selected/changes.\n\nReport dates identify fixed editions, but corrections and withdrawn citations can change their public content. Revalidate retained copies with If-None-Match after Cache-Control expires; do not treat a dated report as immutable.\n\nTitles and summaries are generated from third-party sources; the original is always linked in links.original.",
     "termsOfService": "{{siteUrl}}/terms"
   },
   "servers": [
@@ -1125,11 +1125,11 @@
         }
       }
     },
-    "/api/v1/weeklies": {
+    "/api/v1/evenings": {
       "get": {
-        "operationId": "weeklies",
-        "summary": "List weekly reports",
-        "description": "Index of published weekly reports, newest first: ISO week, its Monday-to-Sunday days, headline and {{siteName}} link. A weekly is published each Monday at {{weeklyTime}} Asia/Shanghai, compiled from the dailies dated in that week, so checking more than once a day is wasted work.",
+        "operationId": "evenings",
+        "summary": "List evening reports",
+        "description": "Date index of past evening reports, newest first. An evening is published once a day at {{eveningTime}} Asia/Shanghai with that day's news since the morning's daily; the daily carries the night before. Checking more than a few times a day is wasted work.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ActorUserAgent"
@@ -1143,8 +1143,8 @@
             "schema": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 60,
-              "default": 12
+              "maximum": 180,
+              "default": 30
             }
           }
         ],
@@ -1166,7 +1166,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/WeekliesResponse"
+                  "$ref": "#/components/schemas/DailiesResponse"
                 }
               }
             }
@@ -1293,11 +1293,11 @@
         }
       }
     },
-    "/api/v1/weeklies/latest": {
+    "/api/v1/evenings/latest": {
       "get": {
-        "operationId": "latestWeekly",
-        "summary": "Get the latest weekly report",
-        "description": "The most recent weekly report: its headline, overview and the week's most important items grouped by section, chosen from that week's dailies. Published each Monday at {{weeklyTime}} Asia/Shanghai; a client that wants the weekly digest should fetch it shortly after that rather than poll. Agent or tool runtimes that cache a stable URL beyond HTTP cache headers should first request /api/v1/weeklies?limit=1 and then /api/v1/weeklies/{returned-week}; never guess a week.",
+        "operationId": "latestEvening",
+        "summary": "Get the latest evening report",
+        "description": "The most recent evening report, published once a day at {{eveningTime}} Asia/Shanghai. It has the daily's shape. Tool runtimes that cache a stable URL should first request /api/v1/evenings?limit=1 and then /api/v1/evenings/{returned-date}; never guess a date.",
         "responses": {
           "200": {
             "description": "OK",
@@ -1316,7 +1316,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/WeeklyResponse"
+                  "$ref": "#/components/schemas/DailyResponse"
                 }
               }
             }
@@ -1469,11 +1469,11 @@
         ]
       }
     },
-    "/api/v1/weeklies/{week}": {
+    "/api/v1/evenings/{date}": {
       "get": {
-        "operationId": "weeklyByWeek",
-        "summary": "Get a weekly report by ISO week",
-        "description": "A single weekly report by ISO week label (YYYY-Www, for example 2026-W39). Corrections and withdrawn citations can change the public content of this edition. Respect Cache-Control and revalidate with If-None-Match before reusing an expired copy; do not cache a report indefinitely.",
+        "operationId": "eveningByDate",
+        "summary": "Get an evening report by Shanghai calendar date",
+        "description": "A single past evening report by Asia/Shanghai calendar date (YYYY-MM-DD). Corrections and withdrawn citations can change its public content; revalidate with If-None-Match before reusing an expired copy.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ActorUserAgent"
@@ -1482,14 +1482,13 @@
             "$ref": "#/components/parameters/IfNoneMatch"
           },
           {
-            "name": "week",
+            "name": "date",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^\\d{4}-W\\d{2}$"
-            },
-            "description": "ISO week label, e.g. 2026-W39."
+              "format": "date"
+            }
           }
         ],
         "responses": {
@@ -1510,7 +1509,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/WeeklyResponse"
+                  "$ref": "#/components/schemas/DailyResponse"
                 }
               }
             }
@@ -1655,11 +1654,11 @@
         }
       }
     },
-    "/api/v1/monthlies": {
+    "/api/v1/specials": {
       "get": {
-        "operationId": "monthlies",
-        "summary": "List monthly reports",
-        "description": "Index of published monthly reports, newest first: month, its first and last day, headline and {{siteName}} link. A monthly is published on the 1st of each month at {{monthlyTime}} Asia/Shanghai, compiled from the dailies dated in that month.",
+        "operationId": "specials",
+        "summary": "List specials",
+        "description": "Index of published specials, newest first: publication date, topic, headline and {{siteName}} link. A special is published at {{specialTime}} Asia/Shanghai on its days (see the site's schedule) and tells one country or region from its reports of the last weeks; checking more than once a day is wasted work.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ActorUserAgent"
@@ -1696,7 +1695,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MonthliesResponse"
+                  "$ref": "#/components/schemas/SpecialsResponse"
                 }
               }
             }
@@ -1823,11 +1822,11 @@
         }
       }
     },
-    "/api/v1/monthlies/latest": {
+    "/api/v1/specials/latest": {
       "get": {
-        "operationId": "latestMonthly",
-        "summary": "Get the latest monthly report",
-        "description": "The most recent monthly report: its headline, overview and the month's most important items grouped by section, chosen from that month's dailies. Published on the 1st of each month at {{monthlyTime}} Asia/Shanghai. Tool runtimes that cache a stable URL should first request /api/v1/monthlies?limit=1 and then /api/v1/monthlies/{returned-month}; never guess a month.",
+        "operationId": "latestSpecial",
+        "summary": "Get the latest special",
+        "description": "The most recent special: its headline, dek and chapters, each with its paragraphs and the reports it cites. Tool runtimes that cache a stable URL should first request /api/v1/specials?limit=1 and then /api/v1/specials/{returned-date}; never guess a date.",
         "responses": {
           "200": {
             "description": "OK",
@@ -1846,7 +1845,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MonthlyResponse"
+                  "$ref": "#/components/schemas/SpecialResponse"
                 }
               }
             }
@@ -1999,11 +1998,11 @@
         ]
       }
     },
-    "/api/v1/monthlies/{month}": {
+    "/api/v1/specials/{date}": {
       "get": {
-        "operationId": "monthlyByMonth",
-        "summary": "Get a monthly report by month",
-        "description": "A single monthly report by calendar month (YYYY-MM, for example 2026-09). Corrections and withdrawn citations can change the public content of this edition. Respect Cache-Control and revalidate with If-None-Match before reusing an expired copy.",
+        "operationId": "specialByDate",
+        "summary": "Get a special by its publication date",
+        "description": "One special by its Asia/Shanghai publication date (YYYY-MM-DD). A chapter whose cited report was withdrawn keeps its heading and remaining citations without its paragraphs. Revalidate with If-None-Match before reusing an expired copy.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ActorUserAgent"
@@ -2012,14 +2011,13 @@
             "$ref": "#/components/parameters/IfNoneMatch"
           },
           {
-            "name": "month",
+            "name": "date",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^\\d{4}-\\d{2}$"
-            },
-            "description": "Calendar month, e.g. 2026-09."
+              "format": "date"
+            }
           }
         ],
         "responses": {
@@ -2040,7 +2038,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MonthlyResponse"
+                  "$ref": "#/components/schemas/SpecialResponse"
                 }
               }
             }
@@ -2984,68 +2982,16 @@
         }
       }
     },
-    "/api/v1/agent/weekly": {
+    "/api/v1/agent/evening": {
       "get": {
-        "operationId": "agentWeekly",
-        "summary": "The latest weekly report as an agent answer",
+        "operationId": "agentEvening",
+        "summary": "The latest evening as an agent answer",
         "parameters": [
           {
             "$ref": "#/components/parameters/ActorUserAgent"
           },
           {
             "$ref": "#/components/parameters/IfNoneMatch"
-          }
-        ],
-        "responses": {
-          "200": {
-            "$ref": "#/components/responses/AgentMarkdown"
-          },
-          "304": {
-            "$ref": "#/components/responses/NotModified"
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "405": {
-            "$ref": "#/components/responses/MethodNotAllowed"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/Unavailable"
-          }
-        },
-        "description": "The most recent weekly report in Chinese Markdown: headline, overview and the week's most important items by section, with answering hints."
-      }
-    },
-    "/api/v1/agent/weekly/{week}": {
-      "get": {
-        "operationId": "agentWeeklyByWeek",
-        "summary": "A weekly report as an agent answer",
-        "description": "A real ISO week such as 2026-W39; a week without a report is 404, never another week's report.",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/ActorUserAgent"
-          },
-          {
-            "$ref": "#/components/parameters/IfNoneMatch"
-          },
-          {
-            "name": "week",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^\\d{4}-W\\d{2}$"
-            },
-            "description": "ISO week label, e.g. 2026-W39."
           }
         ],
         "responses": {
@@ -3076,10 +3022,60 @@
         }
       }
     },
-    "/api/v1/agent/monthly": {
+    "/api/v1/agent/evening/{date}": {
       "get": {
-        "operationId": "agentMonthly",
-        "summary": "The latest monthly report as an agent answer",
+        "operationId": "agentEveningByDate",
+        "summary": "An evening report as an agent answer",
+        "description": "A real YYYY-MM-DD date; a date without an evening report is 404, never another issue.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ActorUserAgent"
+          },
+          {
+            "$ref": "#/components/parameters/IfNoneMatch"
+          },
+          {
+            "name": "date",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/AgentMarkdown"
+          },
+          "304": {
+            "$ref": "#/components/responses/NotModified"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/agent/special": {
+      "get": {
+        "operationId": "agentSpecial",
+        "summary": "The latest special as an agent answer",
         "parameters": [
           {
             "$ref": "#/components/parameters/ActorUserAgent"
@@ -3113,15 +3109,14 @@
           "503": {
             "$ref": "#/components/responses/Unavailable"
           }
-        },
-        "description": "The most recent monthly report in Chinese Markdown: headline, overview and the month's most important items by section, with answering hints."
+        }
       }
     },
-    "/api/v1/agent/monthly/{month}": {
+    "/api/v1/agent/special/{date}": {
       "get": {
-        "operationId": "agentMonthlyByMonth",
-        "summary": "A monthly report as an agent answer",
-        "description": "A real month such as 2026-09; a month without a report is 404, never another month's report.",
+        "operationId": "agentSpecialByDate",
+        "summary": "A special as an agent answer",
+        "description": "A real YYYY-MM-DD date; a date without a special is 404, never another issue.",
         "parameters": [
           {
             "$ref": "#/components/parameters/ActorUserAgent"
@@ -3130,14 +3125,13 @@
             "$ref": "#/components/parameters/IfNoneMatch"
           },
           {
-            "name": "month",
+            "name": "date",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^\\d{4}-\\d{2}$"
-            },
-            "description": "Calendar month, e.g. 2026-09."
+              "format": "date"
+            }
           }
         ],
         "responses": {
@@ -3501,7 +3495,7 @@
               "string",
               "null"
             ],
-            "description": "Reader-facing recommendation reason, the same text shown as 推荐理由 on the website. Always present on /api/v1/items; null when the item is not selected or has no reader-facing reason. Selected snapshot and changes do not include this field yet."
+            "description": "Reader-facing recommendation reason, the same text shown as 点评 on the website (a light-hearted comment that may contain clearly framed imagined lines, not quotes). Always present on /api/v1/items; null when the item is not selected or has no reader-facing reason. Selected snapshot and changes do not include this field yet."
           },
           "attribution": {
             "$ref": "#/components/schemas/Attribution"
@@ -4485,9 +4479,11 @@
           }
         ]
       },
-      "PeriodEntry": {
+      "SpecialEntry": {
         "type": "object",
         "required": [
+          "date",
+          "topic",
           "periodStart",
           "periodEnd",
           "generatedAt",
@@ -4495,21 +4491,48 @@
           "links"
         ],
         "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "Publication date (Asia/Shanghai)."
+          },
+          "topic": {
+            "anyOf": [
+              {
+                "type": "object",
+                "required": [
+                  "slug",
+                  "name"
+                ],
+                "properties": {
+                  "slug": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The country or region the special tells (a topic of the site)."
+          },
           "periodStart": {
             "type": [
               "string",
               "null"
             ],
             "format": "date",
-            "description": "First calendar day the issue covers (Asia/Shanghai)."
+            "description": "First day of the reports it was written from."
           },
           "periodEnd": {
             "type": [
               "string",
               "null"
             ],
-            "format": "date",
-            "description": "Last calendar day the issue covers (Asia/Shanghai)."
+            "format": "date"
           },
           "generatedAt": {
             "type": "string",
@@ -4519,8 +4542,7 @@
             "type": [
               "string",
               "null"
-            ],
-            "description": "The issue's lead: its most important item's title, or once that item is withdrawn the next one still public (older issues may carry their own headline)."
+            ]
           },
           "links": {
             "type": "object",
@@ -4539,47 +4561,7 @@
           }
         }
       },
-      "WeeklyEntry": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/PeriodEntry"
-          },
-          {
-            "type": "object",
-            "required": [
-              "week"
-            ],
-            "properties": {
-              "week": {
-                "type": "string",
-                "pattern": "^\\d{4}-W\\d{2}$",
-                "description": "ISO week label, e.g. 2026-W39."
-              }
-            }
-          }
-        ]
-      },
-      "MonthlyEntry": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/PeriodEntry"
-          },
-          {
-            "type": "object",
-            "required": [
-              "month"
-            ],
-            "properties": {
-              "month": {
-                "type": "string",
-                "pattern": "^\\d{4}-\\d{2}$",
-                "description": "Calendar month, e.g. 2026-09."
-              }
-            }
-          }
-        ]
-      },
-      "WeekliesResponse": {
+      "SpecialsResponse": {
         "type": "object",
         "required": [
           "schemaVersion",
@@ -4597,37 +4579,16 @@
           "items": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/WeeklyEntry"
+              "$ref": "#/components/schemas/SpecialEntry"
             }
           }
         }
       },
-      "MonthliesResponse": {
+      "SpecialReport": {
         "type": "object",
         "required": [
-          "schemaVersion",
-          "count",
-          "items"
-        ],
-        "properties": {
-          "schemaVersion": {
-            "const": 1
-          },
-          "count": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MonthlyEntry"
-            }
-          }
-        }
-      },
-      "PeriodReport": {
-        "type": "object",
-        "required": [
+          "date",
+          "topic",
           "periodStart",
           "periodEnd",
           "generatedAt",
@@ -4639,6 +4600,33 @@
           "sections"
         ],
         "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "topic": {
+            "anyOf": [
+              {
+                "type": "object",
+                "required": [
+                  "slug",
+                  "name"
+                ],
+                "properties": {
+                  "slug": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The country or region the special tells (a topic of the site)."
+          },
           "periodStart": {
             "type": [
               "string",
@@ -4660,7 +4648,7 @@
           "windowStart": {
             "type": "string",
             "format": "date-time",
-            "description": "Start of the dailies' windows the issue was compiled from."
+            "description": "Start of the reports the special was written from."
           },
           "windowEnd": {
             "type": "string",
@@ -4686,35 +4674,36 @@
               "string",
               "null"
             ],
-            "description": "The most important item's title, or once that item is withdrawn the next one still public (older issues may carry their own headline)."
+            "description": "The special's own title."
           },
           "overview": {
             "type": [
               "string",
               "null"
             ],
-            "description": "A short overview of the period's main threads, written only from the items listed."
+            "description": "Its dek: two or three sentences on what this issue tells."
           },
           "sections": {
             "type": "array",
-            "description": "Sections in reading order, each with its items in order of importance. Withdrawn items are left out.",
+            "description": "Chapters in reading order.",
             "items": {
               "type": "object",
               "required": [
                 "label",
-                "summary",
+                "paragraphs",
                 "items"
               ],
               "properties": {
                 "label": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "The chapter's heading."
                 },
-                "summary": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "description": "One or two sentences introducing the section, when there is one."
+                "paragraphs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "The chapter's text; empty once a report it cites was withdrawn."
                 },
                 "items": {
                   "type": "array",
@@ -4766,45 +4755,7 @@
           }
         }
       },
-      "WeeklyReport": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/PeriodReport"
-          },
-          {
-            "type": "object",
-            "required": [
-              "week"
-            ],
-            "properties": {
-              "week": {
-                "type": "string",
-                "pattern": "^\\d{4}-W\\d{2}$"
-              }
-            }
-          }
-        ]
-      },
-      "MonthlyReport": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/PeriodReport"
-          },
-          {
-            "type": "object",
-            "required": [
-              "month"
-            ],
-            "properties": {
-              "month": {
-                "type": "string",
-                "pattern": "^\\d{4}-\\d{2}$"
-              }
-            }
-          }
-        ]
-      },
-      "WeeklyResponse": {
+      "SpecialResponse": {
         "type": "object",
         "required": [
           "schemaVersion",
@@ -4815,22 +4766,7 @@
             "const": 1
           },
           "report": {
-            "$ref": "#/components/schemas/WeeklyReport"
-          }
-        }
-      },
-      "MonthlyResponse": {
-        "type": "object",
-        "required": [
-          "schemaVersion",
-          "report"
-        ],
-        "properties": {
-          "schemaVersion": {
-            "const": 1
-          },
-          "report": {
-            "$ref": "#/components/schemas/MonthlyReport"
+            "$ref": "#/components/schemas/SpecialReport"
           }
         }
       }

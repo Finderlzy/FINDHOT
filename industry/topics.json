@@ -22,14 +22,16 @@
       "name": "美国",
       "group": "company",
       "entityId": "us",
-      "definition": "美国的外交、军事与经贸政策：白宫、国务院和五角大楼的动作，以及美国与各国关系的变化。"
+      "definition": "美国的外交、军事与经贸政策：白宫、国务院和五角大楼的动作，以及美国与各国关系的变化。",
+      "special": false
     },
     {
       "slug": "china",
       "name": "中国",
       "group": "company",
       "entityId": "china",
-      "definition": "中国的对外关系与国际动向：外交表态、首脑往来、经贸措施，以及各方对中国的政策变化。"
+      "definition": "中国的对外关系与国际动向：外交表态、首脑往来、经贸措施，以及各方对中国的政策变化。",
+      "special": false
     },
     {
       "slug": "russia",
@@ -78,7 +80,8 @@
       "name": "联合国",
       "group": "company",
       "entityId": "un",
-      "definition": "联合国与安理会的决议、表决与人道行动，以及各国在联合国框架内的博弈。"
+      "definition": "联合国与安理会的决议、表决与人道行动，以及各国在联合国框架内的博弈。",
+      "special": false
     },
     {
       "slug": "japan",
@@ -162,7 +165,8 @@
       "tags": [
         "欧洲"
       ],
-      "definition": "欧洲的安全与政局：各国大选、防务投入、欧洲内部的分歧与协调。"
+      "definition": "欧洲的安全与政局：各国大选、防务投入、欧洲内部的分歧与协调。",
+      "special": false
     },
     {
       "slug": "asia-pacific",
@@ -171,7 +175,8 @@
       "tags": [
         "亚太"
       ],
-      "definition": "亚太地区的外交与安全格局：同盟体系、地区合作和各国之间的关系变化。"
+      "definition": "亚太地区的外交与安全格局：同盟体系、地区合作和各国之间的关系变化。",
+      "special": false
     },
     {
       "slug": "africa",
@@ -225,7 +230,8 @@
       "tags": [
         "联合国"
       ],
-      "definition": "联合国大会、安理会与各专门机构的议程、决议与表决。"
+      "definition": "联合国大会、安理会与各专门机构的议程、决议与表决。",
+      "special": false
     },
     {
       "slug": "diplomacy",

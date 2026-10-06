@@ -68,8 +68,8 @@ export function McpPanel(props: AgentPanelProps) {
             [<Mono>{T.hot}</Mono>, "当前热点榜 Top 10", "现在最热的是什么？"],
             [<Mono>{T.story}</Mono>, "一个热点事件的时间线和持续更新的综述", "这件事的来龙去脉？"],
             [<Mono>{T.daily}</Mono>, subjectAfter("最新或指定日期的", "日报"), "给我今天的日报。"],
-            [<Mono>{T.weekly}</Mono>, subjectAfter("最新或指定一周的", "周报"), `${subjectAfter("这周", "圈")}有哪些大事？`],
-            [<Mono>{T.monthly}</Mono>, subjectAfter("最新或指定月份的", "月报"), `${subjectAfter("上个月", "圈")}发生了什么？`],
+            [<Mono>{T.evening}</Mono>, subjectAfter("最新或指定日期的", "晚报"), "今天白天出了什么事？"],
+            [<Mono>{T.special}</Mono>, "最新或指定一期专题报：一个国家或地区最近几周的来龙去脉", "最近日本那边怎么了？"],
             ...AGENT_PARTS.flatMap((a) => a.tools ?? []).map((t) => [<Mono>{t.name}</Mono>, t.does, t.ask]),
           ]}
         />
@@ -110,8 +110,8 @@ const FEEDS = [
   { name: "精选全文", path: "/feed/full.xml", desc: "同样的 50 条；允许转载的来源直接附全文，其余仍是摘要。" },
   { name: "全部动态", path: "/feed/all.xml", desc: "最近 7 天的公开动态，按原文发布时间倒序。" },
   { name: withSubject("日报"), path: "/feed/daily.xml", desc: `${EDITION_WHEN.daily}（北京时间）一期：头条导语加整期目录，保留最近 30 期。` },
-  { name: withSubject("周报"), path: "/feed/weekly.xml", desc: `${EDITION_WHEN.weekly}（北京时间）一期：总述加按栏目分好的${REPORTS.entry.noun}，保留最近 12 期。` },
-  { name: withSubject("月报"), path: "/feed/monthly.xml", desc: `${EDITION_WHEN.monthly}（北京时间）一期：总述加按栏目分好的${REPORTS.entry.noun}，保留最近 12 期。` },
+  { name: withSubject("晚报"), path: "/feed/evening.xml", desc: `${EDITION_WHEN.evening}（北京时间）一期：当天白天的${REPORTS.entry.noun}，头条导语加整期目录，保留最近 30 期。` },
+  { name: "专题报", path: "/feed/special.xml", desc: `${EDITION_WHEN.special}（北京时间）一期：一个国家或地区的长文导语加每章引用的报道，保留最近 12 期。` },
 ];
 
 /** The category feeds, under the names the feeds themselves use. */
@@ -171,7 +171,7 @@ export function ApiPanel(props: AgentPanelProps) {
   const { base, tag } = props;
   const userAgent = [ACCESS.userAgent, TAG && tag ? TAG.userAgent(tag) : null].filter(Boolean).join(" ");
   const curl = `curl --compressed${userAgent ? ` -A '${userAgent}'` : ""}`;
-  let pace = `内容多久变一次：新资讯全天陆续进来，精选每天变几次到几十次，日报${EDITION_WHEN.daily}、周报${EDITION_WHEN.weekly}、月报${EDITION_WHEN.monthly}（北京时间）各一期。`;
+  let pace = `内容多久变一次：新资讯全天陆续进来，精选每天变几次到几十次，日报${EDITION_WHEN.daily}、晚报${EDITION_WHEN.evening}（北京时间）各一期，专题报${EDITION_WHEN.special} 一期。`;
   if (ACCESS.ratePerMinute) pace += `同一个 IP 每分钟超过约 ${ACCESS.ratePerMinute} 次会收到 429，请按 Retry-After 等待，不要并发重试。`;
   const [recipe, setRecipe] = useState<string>("latest");
   const recipes = AGENT_PARTS.flatMap((a) => a.recipes ?? []);
@@ -188,7 +188,7 @@ export function ApiPanel(props: AgentPanelProps) {
           items={[
             { title: "开压缩", text: <>curl 加 <Mono>--compressed</Mono>，其他客户端打开 gzip 或 br。JSON 压缩后只有原来的 1/4 到 1/8。</> },
             { title: "带上 ETag", text: <>保存响应里的 ETag，下次带 <Mono>If-None-Match</Mono>；内容没变时返回 304，不传正文。</> },
-            { title: "按节奏取", text: `资讯和热点最快一分钟一次；日报${EDITION_WHEN.daily} 后取一次，周报、月报出刊后取一次；往回翻页翻到已有的那条就停。` },
+            { title: "按节奏取", text: `资讯和热点最快一分钟一次；日报、晚报、专题报各在出刊后取一次；往回翻页翻到已有的那条就停。` },
           ]}
         />
         <p className="mt-3 text-[13px] leading-[1.75] text-ink-3">{pace}</p>
@@ -204,17 +204,17 @@ export function ApiPanel(props: AgentPanelProps) {
             { group: "热点与事件" },
             [<Mono>/api/v1/hot-topics</Mono>, "当前热点榜 Top 10", "最快 1 分钟一次"],
             [<Mono>{"/api/v1/stories/{publicId}"}</Mono>, "一个事件的报道时间线、AI 综述和关联事件", "需要时"],
-            { group: "日报" },
-            [<Mono>/api/v1/dailies/latest</Mono>, "最新一期日报", `${EDITION_WHEN.daily} 后一次`],
+            { group: "日报与晚报" },
+            [<Mono>/api/v1/dailies/latest</Mono>, "最新一期日报（前一晚到早上）", `${EDITION_WHEN.daily} 后一次`],
             [<Mono>{"/api/v1/dailies/{date}"}</Mono>, "指定日期日报；撤稿会移除引用", "缓存过期后使用前验证 ETag"],
             [<Mono>/api/v1/dailies</Mono>, "日报日期索引", "每天一次"],
-            { group: "周报与月报" },
-            [<Mono>/api/v1/weeklies/latest</Mono>, "最新一期周报：头条、总述和一周重点，按栏目分好", `${EDITION_WHEN.weekly} 后一次`],
-            [<Mono>{"/api/v1/weeklies/{week}"}</Mono>, "指定一周，ISO 周如 2026-W39；撤稿会移除引用", "缓存过期后使用前验证 ETag"],
-            [<Mono>/api/v1/weeklies</Mono>, "周报索引", "每周一次"],
-            [<Mono>/api/v1/monthlies/latest</Mono>, "最新一期月报", `${EDITION_WHEN.monthly} 后一次`],
-            [<Mono>{"/api/v1/monthlies/{month}"}</Mono>, "指定月份，如 2026-09", "缓存过期后使用前验证 ETag"],
-            [<Mono>/api/v1/monthlies</Mono>, "月报索引", "每月一次"],
+            [<Mono>/api/v1/evenings/latest</Mono>, "最新一期晚报（当天白天），结构同日报", `${EDITION_WHEN.evening} 后一次`],
+            [<Mono>{"/api/v1/evenings/{date}"}</Mono>, "指定日期晚报；撤稿会移除引用", "缓存过期后使用前验证 ETag"],
+            [<Mono>/api/v1/evenings</Mono>, "晚报日期索引", "每天一次"],
+            { group: "专题报" },
+            [<Mono>/api/v1/specials/latest</Mono>, "最新一期专题报：标题、导语、各章正文和引用的报道", `${EDITION_WHEN.special} 后一次`],
+            [<Mono>{"/api/v1/specials/{date}"}</Mono>, "指定出刊日期的一期；引用的报道撤稿后，那一章不再给正文", "缓存过期后使用前验证 ETag"],
+            [<Mono>/api/v1/specials</Mono>, "专题报索引：出刊日期、主题和标题", "每周两次"],
             ...AGENT_PARTS.flatMap((a) => (a.api ? [{ group: a.api.group }, ...a.api.rows.map(([path, does, often]) => [<Mono>{path}</Mono>, does, often])] : [])),
             { group: "给 AI 助手" },
             [<Mono>/api/v1/agent</Mono>, `给 Agent 的使用说明，列出的地址返回整理好的中文 Markdown${GUIDE_CLIENTS ? `；${GUIDE_CLIENTS} 用的就是它们` : ""}`, "需要时"],

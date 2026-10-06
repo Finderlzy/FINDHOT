@@ -32,8 +32,8 @@ async function build(at: Date): Promise<string> {
     { loc: "/daily", lastmod: latestDaily?.t, changefreq: "daily", priority: 0.9 },
     { loc: "/hot", lastmod: now, changefreq: "hourly", priority: 0.9 },
     { loc: "/daily/archive", lastmod: latestDaily?.t, changefreq: "daily", priority: 0.7 },
-    { loc: "/weekly", changefreq: "weekly", priority: 0.7 },
-    { loc: "/monthly", changefreq: "monthly", priority: 0.6 },
+    { loc: "/evening", changefreq: "daily", priority: 0.8 },
+    { loc: "/special", changefreq: "weekly", priority: 0.8 },
     { loc: "/topics", changefreq: "daily", priority: 0.7 },
     // The modules' pages, between the content pages and the site's own.
     ...serverModules().flatMap((m) => m.sitemap?.pages ?? []),
@@ -44,7 +44,7 @@ async function build(at: Date): Promise<string> {
     { loc: "/changelog", lastmod: now, changefreq: "weekly", priority: 0.5 },
   );
   const reports = await sql<{ kind: string; key: string; generated_at: Date }[]>`SELECT kind, key, generated_at FROM reports ORDER BY kind, key DESC`;
-  for (const r of reports) entries.push({ loc: `/${r.kind}/${r.key}`, lastmod: r.generated_at, changefreq: r.kind === "daily" ? "never" : "monthly", priority: r.kind === "daily" ? 0.6 : 0.6 });
+  for (const r of reports) entries.push({ loc: `/${r.kind}/${r.key}`, lastmod: r.generated_at, changefreq: "never", priority: r.kind === "special" ? 0.7 : 0.6 });
   for (const t of await topicPageCounts(at)) {
     if (!t.indexable) continue;
     entries.push({ loc: `/topics/${t.slug}`, lastmod: t.changedAt, changefreq: "daily", priority: 0.6 });

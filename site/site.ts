@@ -3,17 +3,21 @@
 // 域名不在这里：部署时用环境变量 SITE_URL 设置。
 
 /**
- * 日报、周报、月报什么时候出（北京时间，HH:mm）：日报收这个时间之前的 24 小时，周报在每个自然周之后的周一出，
- * 月报在每月 1 日出。排程、成刊时间窗口、缺期告警和所有提到时间的文案都读它（public/ 里的文件写占位
- * {{dailyTime}}、{{weeklyTime}}、{{monthlyTime}}）；排程每半小时检查一次，所以写整点或半点。
+ * 日报、晚报、专题报什么时候出（北京时间，HH:mm）：日报收前一天晚报出刊以后到这个时间的消息，晚报收当天日报出刊
+ * 以后到这个时间的消息，两份各管半天、不重复；专题报在 SPECIAL_DAYS 这几天出。排程、成刊时间窗口、缺期告警和所有
+ * 提到时间的文案都读它（public/ 里的文件写占位 {{dailyTime}}、{{eveningTime}}、{{specialTime}}）；排程每半小时
+ * 检查一次，所以写整点或半点。
  */
-export const EDITION_TIMES = { daily: "08:00", weekly: "10:00", monthly: "10:30" };
+export const EDITION_TIMES = { daily: "08:00", evening: "20:00", special: "12:00" };
 
-/** “每天 08:00”“每周一 10:00”“每月 1 日 10:30”：写进句子里的出刊时间。 */
+/** 专题报出刊的星期（1 是周一，7 是周日）。 */
+export const SPECIAL_DAYS = [3, 6];
+
+/** “每天 08:00”“每天 20:00”“每周三、六 12:00”：写进句子里的出刊时间。 */
 export const EDITION_WHEN = {
   daily: `每天 ${EDITION_TIMES.daily}`,
-  weekly: `每周一 ${EDITION_TIMES.weekly}`,
-  monthly: `每月 1 日 ${EDITION_TIMES.monthly}`,
+  evening: `每天 ${EDITION_TIMES.evening}`,
+  special: `每周${SPECIAL_DAYS.map((d) => "一二三四五六日"[d - 1]).join("、")} ${EDITION_TIMES.special}`,
 };
 
 export const SITE = {
@@ -59,7 +63,7 @@ export const SITE = {
    * 公开接口（MCP、OpenAPI、llms.txt）的版本号，只升不降。
    * 改了接口里已有的字段或含义时升主版本，并在部署说明里写清。
    */
-  interfaceVersion: "4.0.0",
+  interfaceVersion: "5.0.0",
   /** 对外联系邮箱（选填）：llms.txt 和给 Agent 的使用说明里会写。 */
   contactEmail: null as string | null,
   /** 关于页底部的一行小字（选填）。 */
@@ -114,7 +118,7 @@ export const POLICY = {
 /** 条目卡片和详情页上的几处说法和显示。 */
 export const ITEM_COPY = {
   /** 模型写的那句理由叫什么：卡片、详情页、Markdown 导出、给 Agent 的回答和群推送都用它。 */
-  reasonLabel: "推荐理由",
+  reasonLabel: "点评",
   /** 读者在网页和分享图上看不看得到 AI 评分。只管显示：公开 API 和 MCP 的数据照样带 score，后台照常显示。 */
   showScore: true,
 };
@@ -143,7 +147,7 @@ export const ABOUT = {
     collect: "国际组织和各大媒体的订阅源都在看；更新越勤的源看得越勤，最快 15 分钟看一次。",
     store: "抓到的都存下来，同一件事的报道归到一起，热点榜就是从这里算出来的。",
     select: `模型先看是不是国际新闻、有没有实际信息，再写中文标题、摘要和${ITEM_COPY.reasonLabel}；营销稿和重复转发进不来。`,
-    publish: `${EDITION_WHEN.daily} 出日报，${EDITION_WHEN.weekly} 出周报，${EDITION_WHEN.monthly} 出月报。`,
+    publish: `${EDITION_WHEN.daily} 出日报，${EDITION_WHEN.evening} 出晚报，${EDITION_WHEN.special} 出一期专题报，挑一个最近热闹的国家或地区从头讲一遍。`,
   },
   /**
    * 作者块（选填），null 就不显示。
@@ -179,25 +183,25 @@ export const AGENT = {
   search: { scope: "按国家、组织、人物或话题搜最近 7 天", ask: "俄乌停火谈判最近有什么进展？" },
 };
 
-/** 日报、周报、月报版面上的说法。 */
+/** 日报、晚报、专题报版面上的说法。 */
 export const REPORTS = {
   /** 报头下面的出版者一行。 */
   imprint: SITE.name.toUpperCase(),
   /** 报头旁边的一个词。 */
   motto: SITE.subject as string,
-  /** 每种报告页面的描述（搜索结果、分享卡片），不带句号；llms.txt 介绍周报、月报时也用它。 */
+  /** 每种报告页面的描述（搜索结果、分享卡片），不带句号；llms.txt 介绍晚报、专题报时也用它。 */
   descriptions: {
     daily: `${SITE.name} ${subjectAfter(`${EDITION_WHEN.daily}（北京时间）发布的`, "精编日报")}`,
-    weekly: subjectAfter("每周", "形势回顾"),
-    monthly: subjectAfter("每月", "形势盘点"),
+    evening: `${SITE.name} ${subjectAfter(`${EDITION_WHEN.evening}（北京时间）发布的`, "晚报")}，收当天白天的消息`,
+    special: `${SITE.name} 专题报：${EDITION_WHEN.special}（北京时间）挑一个最近热闹的国家或地区，把这几周的事从头讲一遍`,
   },
   /**
-   * 一期里的一条怎么称呼（“4 件大事”）：没有头条时的标题（“这一天的 4 件 AI 大事”）、报头和往期目录的条数、
-   * 周报月报没有总述时的那句话，以及订阅说明里的“按栏目分好的大事”都用它。
+   * 一期里的一条怎么称呼（“4 件大事”）：没有头条时的标题（“这一天的 4 件 AI 大事”）、报头和往期目录的条数，
+   * 以及订阅说明里的“按栏目分好的大事”都用它。
    */
   entry: { measure: "件", noun: "大事" },
   /** 报头上其余几个数字后面的说法；精选数和日报期数在关于页、主题页也这样写。 */
-  metricUnits: { sourcesCount: "个来源", firstPartyEvents: "件一手发布", selectedCount: "条精选", reportsCovered: "期日报" },
+  metricUnits: { sourcesCount: "个来源", firstPartyEvents: "件一手发布", selectedCount: "条精选", reportsCovered: "期日报", reportsCited: "篇引用报道" },
   /** 报告分享图上“共几条”的说法。 */
   shareUnit: "件大事",
 };
@@ -235,8 +239,8 @@ export const CARDS: Record<string, { kicker: string; title: string; subtitle: st
   all: { kicker: subjectAfter("全部", "动态"), title: "所有信源的最新动态，一站看完", subtitle: "按时间汇总各信源的最新动态，可按类别与标签筛选。" },
   hot: { kicker: "热点榜", title: "过去 48 小时，大家在讨论什么", subtitle: "热度指数、趋势与组成热度的公开来源。", accent: "hot" },
   daily: { kicker: withSubject("日报"), title: subjectAfter(`每天 ${spokenTime(EDITION_TIMES.daily)}，一份读得完的`, "日报"), subtitle: `${subjectAfter("前一天值得关注的", "动态")}。` },
-  weekly: { kicker: withSubject("周报"), title: `一周${REPORTS.entry.noun}，一次看清`, subtitle: "本周的主线、关键事件与值得回看的分析。" },
-  monthly: { kicker: withSubject("月报"), title: "一个月的变化", subtitle: "月度主线与关键事件回顾。" },
+  evening: { kicker: withSubject("晚报"), title: subjectAfter(`每天 ${spokenTime(EDITION_TIMES.evening)}，白天的`, "动态"), subtitle: "日报出刊以后到晚上的新消息，下班路上看完。" },
+  special: { kicker: "专题报", title: "一期只讲一个地方", subtitle: "挑一个最近热闹的国家或地区，把这几周的事串起来从头讲一遍。" },
   about: { kicker: "关于", title: `关于 ${SITE.name}`, subtitle: SITE.description },
   terms: { kicker: "使用规则", title: `${SITE.name} 使用规则`, subtitle: "网页、API、RSS 与 MCP 的使用范围。" },
   privacy: { kicker: "隐私说明", title: `${SITE.name} 隐私说明`, subtitle: "访问日志、浏览器本地数据与反馈资料的处理方式。" },

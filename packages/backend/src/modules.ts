@@ -262,6 +262,12 @@ export interface ServerModule {
     resumed?: (sourceId: string, tx: Db) => Promise<void>;
     fetchNow?: (source: { id: string; config: Record<string, unknown> }) => Promise<Record<string, unknown>>;
   }>;
+  /**
+   * The article's HTML from a page that carries its body outside the readable markup, such as in a textarea or
+   * a script variable (content/extract.ts readable); null for a page it does not know. The first module with
+   * one decides; what it returns is sanitized like any body, and kept however short (a news flash) unless empty.
+   */
+  bodyFromPage?: (html: string, url: string) => string | null;
   /** Lines of the Monday source-health report (operations/reports.ts), after the source counts. */
   sourceHealth?: (now: number) => Promise<string[]>;
   /** Job queues of its own (jobs/queue.ts). */
