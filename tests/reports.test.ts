@@ -1,7 +1,8 @@
 // Reports: a scheduled run that starts late still writes the issue it was due for, never one whose
 // window is still open; a daily and an evening split the day without a gap or an overlap; an issue
 // with nothing in it is refused rather than published empty; a special prints only what its material
-// names and drops a chapter's text once a report it cites is withdrawn; and a special that froze no
+// names, apart from one marked background paragraph a chapter without figures or quotations, and drops
+// a chapter's text once a report it cites is withdrawn; and a special that froze no
 // summaries shows the cited articles' public summaries.
 import { editionAt, tag } from "./setup.ts";
 import assert from "node:assert/strict";
@@ -73,6 +74,16 @@ test("a special prints only the paragraphs its material grounds, and nothing whe
   const mostlyInvented = { ...written, chapters: [{ heading: "第一章", paragraphs: [grounded, invented, invented, invented], refs: [1] }] };
   assert.ok("error" in vetArticle(mostlyInvented, material, corpus));
   assert.ok("error" in vetArticle({ ...written, title: "编了 4821 架" }, material, corpus), "an invented figure in the title fails the whole special");
+  const background = "【背景】这两家本来就不对付，各说各的理，谁也不服谁。".repeat(3);
+  const chapter = (heading: string, extra: string[]) => ({ heading, refs: [1], paragraphs: [grounded, ...extra] });
+  const kept = vetArticle({ ...written, chapters: [
+    chapter("一", [background, background]),
+    chapter("二", [`【背景】两家早在 1950 年就结了仇。${background.slice(4)}`]),
+    chapter("三", ["【背景】据“消息人士”说，两家早就不对付。"]),
+  ] }, material, corpus);
+  assert.ok(!("error" in kept));
+  assert.deepEqual(kept.chapters.map((c) => c.paragraphs.filter((p) => p.startsWith("【背景】")).length), [1, 0, 0],
+    "one background paragraph per chapter, with no figure or quotation of its own");
 });
 
 test("a special shows its citations' public summaries, and drops a chapter's text once a citation is withdrawn", async () => {

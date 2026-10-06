@@ -1,5 +1,6 @@
 // Failure cases: automatic runs rewrite published issues; report/receipt commits split; empty gaps
-// starve later dailies or make a failed run look successful. All use a local model stub.
+// starve later dailies or make a failed run look successful; a special is written about a topic the
+// judge does not think makes an episode, or retried for days. All use a local model stub.
 import { editionAt, stub, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test } from "node:test";
@@ -11,7 +12,13 @@ const T = tag();
 const SOURCE = `report-recovery-${T}`;
 const paragraph = "这件事说来话长，咱们慢慢讲，先看最近这几天发生了什么。".repeat(12);
 const answer = { title: "日本最近有点热闹", dek: "这一期讲讲日本。", chapters: [{ heading: "最近的事", paragraphs: [paragraph, paragraph, paragraph, paragraph, paragraph], refs: [1, 2] }] };
-const provider = await stub(async () => ({ choices: [{ message: { content: JSON.stringify(answer) } }] }));
+/** What the stubbed judge gives Japan, the only topic the tests' reports are about. */
+let japanScore = 8;
+const provider = await stub(async (_hit, request) => {
+  const judging = String(JSON.parse(request.body).messages[0]?.content ?? "").includes('"picks"');
+  const content = judging ? { picks: [{ slug: "japan", score: japanScore, hook: "高市访美没人接机" }] } : answer;
+  return { choices: [{ message: { content: JSON.stringify(content) } }] };
+});
 process.env.DEEPSEEK_BASE_URL = `${provider.url}/v1`;
 process.env.DEEPSEEK_API_KEY = "test-key";
 before(async () => {
@@ -80,11 +87,27 @@ test("report publication and its receipt commit together and recovery reuses the
   assert.equal((await sql`SELECT status FROM receipts WHERE subject = 'report:special:2024-05-04'`)[0]!.status, "completed");
 });
 
-test("a special without a topic that has enough news is not written and asks no model", async () => {
-  for (let n = 1; n <= 4; n++) await item(editionAt("evening", "2024-03-01", -n * 7200), true);
+test("a special is written only about a topic the judge scores high enough, and without news asks no model", async () => {
+  await item(editionAt("evening", "2024-03-01", -7200));
   const calls = provider.hits();
-  await assert.rejects(composeSpecial("2024-03-02"), /no topic has 5 events/);
-  assert.equal(provider.hits(), calls);
+  await assert.rejects(composeSpecial("2024-03-02"), /no topic has news/);
+  assert.equal(provider.hits(), calls, "no candidate, no judge");
+  await item(editionAt("evening", "2024-03-01", -3600), true);
+  japanScore = 4;
+  try {
+    await assert.rejects(composeSpecial("2024-03-02"), /no candidate makes an episode \(best japan 4\/10\)/);
+    assert.equal(provider.hits(), calls + 1, "the judge was asked, the writer was not");
+    await assert.rejects(composeSpecial("2024-03-02"), /no candidate makes an episode/);
+    assert.equal(provider.hits(), calls + 1, "the same candidates are not judged twice");
+    assert.equal(await report("special", "2024-03-02"), undefined);
+  } finally {
+    japanScore = 8;
+  }
+  await item(editionAt("evening", "2024-03-01", -1800), true);
+  await composeSpecial("2024-03-02");
+  const saved = await report("special", "2024-03-02");
+  assert.equal(saved.content.topic.slug, "japan");
+  assert.equal(saved.content.generator.score, 8);
 });
 
 test("empty older gaps cannot starve a later daily, and failures remain visible", async () => {
@@ -93,6 +116,7 @@ test("empty older gaps cannot starve a later daily, and failures remain visible"
   await sql`INSERT INTO reports (kind, key, window_start, window_end, content, generated_at)
     VALUES ('daily', '2024-01-23', now(), now(), ${sql.json({ sections: [{ label: "行业动态", items: [{ itemId: early, title: early }] }] })}, now())`;
   await item(editionAt("daily", "2024-02-02", -3600));
-  await assert.rejects(composeDueReports(editionAt("daily", "2024-02-02", 3600)), /reports:/);
+  // The special of 2024-01-31 is past its hours: it is skipped, not tried.
+  await assert.rejects(composeDueReports(editionAt("daily", "2024-02-02", 3600)), (error: Error) => /reports:/.test(error.message) && !/special/.test(error.message));
   assert.ok(await report("daily", "2024-02-02"), "daily 2024-02-02 was recovered past the empty gaps");
 });

@@ -22,16 +22,14 @@
       "name": "美国",
       "group": "company",
       "entityId": "us",
-      "definition": "美国的外交、军事与经贸政策：白宫、国务院和五角大楼的动作，以及美国与各国关系的变化。",
-      "special": false
+      "definition": "美国的外交、军事与经贸政策：白宫、国务院和五角大楼的动作，以及美国与各国关系的变化。"
     },
     {
       "slug": "china",
       "name": "中国",
       "group": "company",
       "entityId": "china",
-      "definition": "中国的对外关系与国际动向：外交表态、首脑往来、经贸措施，以及各方对中国的政策变化。",
-      "special": false
+      "definition": "中国的对外关系与国际动向：外交表态、首脑往来、经贸措施，以及各方对中国的政策变化。"
     },
     {
       "slug": "russia",
@@ -165,8 +163,7 @@
       "tags": [
         "欧洲"
       ],
-      "definition": "欧洲的安全与政局：各国大选、防务投入、欧洲内部的分歧与协调。",
-      "special": false
+      "definition": "欧洲的安全与政局：各国大选、防务投入、欧洲内部的分歧与协调。"
     },
     {
       "slug": "asia-pacific",

@@ -124,14 +124,14 @@ export async function periodReports(start: Date, end: Date): Promise<ReportRow[]
   });
 }
 
-/** A topic's selected reports that happened in [start, end): what a special is chosen and written from. */
+/** A topic's collected reports that happened in [start, end), selected or not: what a special is chosen and written from. */
 export async function topicReports(topic: Topic, start: Date, end: Date): Promise<ReportRow[]> {
   return sql<ReportRow[]>`
     SELECT ${REPORT_FIELDS}
     FROM publications p JOIN sources s ON s.id = p.source_id
     LEFT JOIN facts f ON f.id = p.fact_id AND ${ownFactEvidenceCondition()}
     LEFT JOIN stories st ON st.id = f.story_id
-    WHERE p.visibility = 'public' AND p.selected AND NOT p.backfill AND p.visible_after < ${end}
+    WHERE ${listedCondition(end)} AND NOT p.backfill
       AND p.timeline_at >= ${start} AND p.timeline_at < ${end} AND ${inTopic(topic)}`;
 }
 

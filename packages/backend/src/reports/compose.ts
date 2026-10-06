@@ -1,8 +1,9 @@
 // Dailies, evenings and specials. Windows are Beijing calendar based and written into the report;
 // missed schedule points are caught up; regeneration creates a revision. A daily and an evening each
-// cover half a day and are composed by rule from edition.ts without a model. A special's topic and
-// material are chosen by rule (special.ts); a model writes the article from the brief in the industry
-// pack (industry/prompts/report-special.md), and what it writes beyond its material is not printed.
+// cover half a day and are composed by rule from edition.ts without a model. A special's candidates and
+// material are found by rule (special.ts); a model judges which candidate makes an episode
+// (industry/prompts/special-pick.md) and another writes the article (report-special.md), and what it
+// writes beyond its material is not printed, apart from marked background without figures.
 import { z } from "zod";
 import { EDITION_TIMES, SITE, SPECIAL_DAYS } from "@aihot/site";
 import { PLAIN_TERMS, RELEASE } from "@aihot/industry/taxonomy";
@@ -18,9 +19,9 @@ import { shutdownSignal } from "../jobs/queue.ts";
 import { logError } from "../lib/log-error.ts";
 import { emit } from "../modules.ts";
 import { arrangeDaily, dailyEdition, sectionOf, SECTION_ORDER, type EditionEntry, type EditionKind } from "./edition.ts";
-import { chooseTopic, MATERIAL_DAYS, MIN_EVENTS, specialMaterial, type SpecialMaterial } from "./special.ts";
+import { candidateList, CHOICE_DAYS, MATERIAL_DAYS, specialCandidates, specialMaterial, type SpecialMaterial } from "./special.ts";
 
-export const REPORT_VERSION = promptVersion("report-special");
+export const REPORT_VERSION = promptVersion("special-pick", "report-special");
 
 /**
  * The masthead's figures, counted in events: sources over every report its entries cite; releases
@@ -115,13 +116,31 @@ async function composeEdition(kind: EditionKind, date: string, reason?: string):
 export const composeDaily = (date: string, reason?: string) => composeEdition("daily", date, reason);
 export const composeEvening = (date: string, reason?: string) => composeEdition("evening", date, reason);
 
-/** How long a special is asked to be, and the least of it that must survive the check to be printed. */
-const SPECIAL_CHARS = 3000;
-const MIN_KEPT_CHARS = 1500;
+/**
+ * How long a special is asked to be: about 250 characters per report of its material, from 1200 to 3000,
+ * so thin material is not padded. Half of that, and most of what was written, must survive the check.
+ */
+const PER_REPORT_CHARS = 250;
+const SPECIAL_CHARS = { min: 1200, max: 3000 };
+export const specialChars = (reports: number) => Math.min(SPECIAL_CHARS.max, Math.max(SPECIAL_CHARS.min, reports * PER_REPORT_CHARS));
 const MIN_KEPT_SHARE = 0.6;
 const TITLE_CHARS = 30;
 const DEK_CHARS = 160;
 const CHAPTER_HEADING_CHARS = 16;
+
+/** The least score of the judge's (0–10) for a topic to make an episode; below it the special is not written. */
+const PICK_MIN = 6;
+/** How long after its edition time a special is tried; a slot without one by then is skipped. */
+const SPECIAL_HOURS = 3;
+
+export const PickSchema = z.object({
+  picks: z.array(z.object({ slug: z.string(), score: z.number(), hook: z.string().max(400).catch("") })).max(40),
+});
+
+/** The judge's brief: every candidate with its latest headlines. */
+export function pickPrompt(list: string) {
+  return { system: promptText("special-pick"), user: list };
+}
 
 export const SpecialSchema = z.object({
   title: z.string().max(200),
@@ -134,10 +153,10 @@ export const SpecialSchema = z.object({
 });
 
 /** The writer's brief: the topic and its numbered material, each report as date, source, headline and summary. */
-export function specialPrompt(topic: string, material: SpecialMaterial[]) {
+export function specialPrompt(topic: string, hook: string, material: SpecialMaterial[]) {
   const line = (m: SpecialMaterial) => `[${m.n}] ${beijingDate(m.publishedAt)}｜${m.sourceName}｜${m.title}｜${m.summary.slice(0, 240)}`;
   return {
-    system: promptText("report-special", { topic, days: String(MATERIAL_DAYS), chars: String(SPECIAL_CHARS) }),
+    system: promptText("report-special", { topic, hook: hook || "从材料里挑", days: String(MATERIAL_DAYS), chars: String(specialChars(material.length)) }),
     user: `本期：${topic}\n${material.map(line).join("\n")}`,
   };
 }
@@ -163,6 +182,14 @@ export function grounded(text: string, corpus: string): boolean {
   return words.every((w) => named(w.toLowerCase())) && figures.every((f) => known.includes(f)) && mentioned.every((names) => companies.includes(names));
 }
 
+/** A special's background paragraph is marked by this; it may name what the material does not, but no figure, Latin name or quotation. */
+export const BACKGROUND = "【背景】";
+export function groundedBackground(text: string, corpus: string): boolean {
+  const known = corpus.toLowerCase();
+  const words = (text.match(/[A-Za-z][A-Za-z0-9.+-]*/g) ?? []).map((w) => w.replace(/[.+-]+$/, "")).filter((w) => /[A-Z0-9]/.test(w));
+  return !/[0-9０-９%％]|[一二三四五六七八九十百千万]+(?:年|月|日|岁|%)|[“”「」]/.test(text) && words.every((w) => known.includes(w.toLowerCase()));
+}
+
 /** The leading whole sentences of a text that fit in `max` characters; null when not even the first does. */
 export function fitted(text: string, max: number): string | null {
   let out = "";
@@ -178,11 +205,13 @@ const oneLine = (text: string) => text.replace(/\s+/g, " ").trim();
 
 /**
  * The article as printed, or why it cannot be: a title and dek that fit and name only what the material
- * names; each chapter's paragraphs that do, under its heading, citing the material it names by number
- * (a chapter without a valid citation cites nothing and is dropped). Most of what was written must
- * survive, else the special is not printed.
+ * names; each chapter's paragraphs that do (its first marked background paragraph without figures, Latin
+ * names or quotations, see groundedBackground), under its heading, citing the material it names by number
+ * (a chapter without a valid citation cites nothing and is dropped). Half the asked length and most of
+ * what was written must survive, else the special is not printed.
  */
 export function vetArticle(written: z.infer<typeof SpecialSchema>, material: SpecialMaterial[], corpus: string) {
+  const minKept = specialChars(material.length) / 2;
   const byN = new Map(material.map((m) => [m.n, m]));
   const title = oneLine(written.title);
   const dek = fitted(oneLine(written.dek), DEK_CHARS);
@@ -192,37 +221,52 @@ export function vetArticle(written: z.infer<typeof SpecialSchema>, material: Spe
   const chapters = written.chapters.flatMap((c) => {
     const paragraphs = c.paragraphs.map(oneLine).filter(Boolean);
     writtenChars += paragraphs.reduce((sum, p) => sum + length(p), 0);
-    const kept = paragraphs.filter((p) => grounded(p, corpus));
+    const background = paragraphs.findIndex((p) => p.startsWith(BACKGROUND));
+    const kept = paragraphs.filter((p, i) => (p.startsWith(BACKGROUND) ? i === background && groundedBackground(p, corpus) : grounded(p, corpus)));
     const refs = [...new Set(c.refs)].map((n) => byN.get(n)).filter((m): m is SpecialMaterial => !!m);
     const heading = oneLine(c.heading);
     if (!kept.length || !refs.length || !heading || length(heading) > CHAPTER_HEADING_CHARS) return [];
     return [{ heading, paragraphs: kept, refs }];
   });
   const keptChars = chapters.reduce((sum, c) => sum + c.paragraphs.reduce((n, p) => n + length(p), 0), 0);
-  if (keptChars < MIN_KEPT_CHARS || keptChars < MIN_KEPT_SHARE * writtenChars) {
+  if (keptChars < minKept || keptChars < MIN_KEPT_SHARE * writtenChars) {
     return { error: `only ${keptChars} of ${writtenChars} characters could be printed` } as const;
   }
   return { title, dek, chapters, dropped: writtenChars - keptChars } as const;
 }
 
 /**
- * A special dated D, at its edition time: the topic chosen by rule, an article a model writes from its
- * material, and under each chapter the reports it cites. Without a topic that has enough news, or when
- * too little of what was written can be printed, the run fails and is tried again at the next run.
+ * A special dated D, at its edition time: the topic a model judges to make an episode among the
+ * candidates, an article a model writes from its material, and under each chapter the reports it cites.
+ * Without a candidate scoring PICK_MIN, or when too little of what was written can be printed, the run
+ * fails and is tried again at the next run, within SPECIAL_HOURS of its edition time.
  */
 export async function composeSpecial(date: string, reason?: string): Promise<{ key: string; entries: number }> {
   const previous = await savedReport("special", date);
   if (previous && reason === undefined) return { key: date, entries: previous.entries };
   const end = beijingAt(date, EDITION_TIMES.special);
   const start = new Date(end.getTime() - MATERIAL_DAYS * 86_400_000);
-  const choice = await chooseTopic(date, end);
-  if (!choice) throw new Error(`special ${date}: no topic has ${MIN_EVENTS} events in two weeks`);
+  const candidates = await specialCandidates(date, end);
+  if (!candidates.length) throw new Error(`special ${date}: no topic has news in the last ${CHOICE_DAYS} days`);
+  const model = await modelFor("report");
+  const judged = await chatJson({
+    model, purpose: "report_special_pick", subject: `report:special:${date}`, promptVersion: REPORT_VERSION,
+    ...pickPrompt(candidateList(candidates, end)), schema: PickSchema, temperature: 0.2, maxTokens: 2000,
+  });
+  const best = judged.data.picks
+    .map((p) => ({ ...p, candidate: candidates.find((c) => c.topic.slug === p.slug) }))
+    .filter((p) => p.candidate)
+    .sort((a, b) => b.score - a.score)[0];
+  if (!best || best.score < PICK_MIN) {
+    await completeReceipt(sql, judged.receiptId);
+    throw new Error(`special ${date}: no candidate makes an episode${best ? ` (best ${best.slug} ${best.score}/10)` : ""}`);
+  }
+  const choice = best.candidate!;
   const material = specialMaterial(choice.rows);
   const corpus = [choice.topic.name, ...material.map((m) => `${beijingDate(m.publishedAt)} ${m.sourceName} ${m.title} ${m.summary}`)].join("\n");
-  const model = await modelFor("report");
   const res = await chatJson({
     model, purpose: "report_special", subject: `report:special:${date}`, promptVersion: REPORT_VERSION,
-    ...specialPrompt(choice.topic.name, material), schema: SpecialSchema, temperature: 0.6, maxTokens: 9000,
+    ...specialPrompt(choice.topic.name, best.hook, material), schema: SpecialSchema, temperature: 0.6, maxTokens: 9000,
   });
   const article = vetArticle(res.data, material, corpus);
   if ("error" in article) {
@@ -243,9 +287,9 @@ export async function composeSpecial(date: string, reason?: string): Promise<{ k
     periodStart: beijingDate(start),
     periodEnd: date,
     metrics: { reportsCited: cited.length, sourcesCount: new Set(cited.map((m) => m.sourceId)).size },
-    generator: { version: REPORT_VERSION, model, material: material.length, droppedChars: article.dropped },
+    generator: { version: REPORT_VERSION, model, score: best.score, hook: best.hook, candidates: candidates.length, material: material.length, droppedChars: article.dropped },
   };
-  await saveReport("special", date, start, end, content, reason, model, [res.receiptId]);
+  await saveReport("special", date, start, end, content, reason, model, [judged.receiptId, res.receiptId]);
   return { key: date, entries: cited.length };
 }
 
@@ -277,7 +321,8 @@ export function dueSpecial(now = new Date()): string {
  * The scheduled run (every half hour): every daily and evening due by `now` that does not exist yet,
  * oldest first. The newest one appears at the first run after it falls due (above); a long stop or an
  * older gap is filled too. A kind with no issue yet only gets its latest due one, and a special only ever
- * its latest: an older one would be written from news that has moved on. An issue that fails does not
+ * its latest, within SPECIAL_HOURS of its edition time: an older one would be written from news that has
+ * moved on, and a slot no candidate made an episode of stays empty. An issue that fails does not
  * hold up the others; at most `limit` issues are written per run, the next run continues.
  */
 export async function composeDueReports(now = new Date(), limit = 8): Promise<{ generated: string[]; failed: string[] }> {
@@ -288,6 +333,8 @@ export async function composeDueReports(now = new Date(), limit = 8): Promise<{ 
     { kind: "evening", due: dueEvening(now), compose: composeEvening },
     { kind: "special", due: dueSpecial(now), compose: composeSpecial },
   ];
+  const special = kinds.find((k) => k.kind === "special")!;
+  if (now.getTime() >= beijingAt(special.due, EDITION_TIMES.special).getTime() + SPECIAL_HOURS * 3600_000) kinds.splice(kinds.indexOf(special), 1);
   kinds: for (const k of kinds) {
     const have = new Set((await sql<{ key: string }[]>`SELECT key FROM reports WHERE kind = ${k.kind}`).map((r) => r.key));
     const first = k.kind === "special" ? k.due : [...have].sort()[0] ?? k.due;

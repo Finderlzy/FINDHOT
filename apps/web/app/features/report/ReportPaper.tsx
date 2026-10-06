@@ -453,10 +453,13 @@ function Cited({ items }: { items: ReportCitation[] }) {
   );
 }
 
+/** A special's background paragraph starts with this (the writer marks what the reports do not say). */
+const BACKGROUND = "【背景】";
+
 /**
  * A special: its topic, title and dek beside the chapter list, the picture of its most important report,
- * then each chapter's paragraphs with the reports it cites. A chapter citing a withdrawn report keeps its
- * heading and citations without its text.
+ * then each chapter's paragraphs, background set apart, with the reports it cites. A chapter citing a
+ * withdrawn report keeps its heading and citations without its text.
  */
 function SpecialArticle({ report }: { report: ReportDetail }) {
   const [broken, setBroken] = useState<string | null>(null);
@@ -480,7 +483,12 @@ function SpecialArticle({ report }: { report: ReportDetail }) {
             </h3>
             {s.paragraphs?.length ? (
               <div className="mt-5 max-w-[42em] space-y-5">
-                {s.paragraphs.map((text, j) => (
+                {s.paragraphs.map((text, j) => text.startsWith(BACKGROUND) ? (
+                  <p key={j} className="border-l-2 border-line-strong pl-4 text-[15.5px] leading-[1.95] text-ink-3 [overflow-wrap:anywhere] @[560px]:text-justify @[880px]:text-[16px]">
+                    <span className="mr-2 text-[12px] font-semibold tracking-[0.2em] text-ink-4">背景</span>
+                    {text.slice(BACKGROUND.length)}
+                  </p>
+                ) : (
                   <p key={j} className="text-[16.5px] leading-[2] text-ink-2 [overflow-wrap:anywhere] @[560px]:text-justify @[880px]:text-[17px]">{text}</p>
                 ))}
               </div>

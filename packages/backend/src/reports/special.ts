@@ -1,23 +1,25 @@
-// What a special is about and what it is written from, decided by rule. A special tells one country or
-// region: a topic of the industry pack that allows one (industry/topics.json). The topic is the one with
-// the most events in the last two weeks, the last week counting double, that none of the last specials
-// was about and whose reports are not mostly ones a recent special already told. Its material is the
-// topic's selected reports of the last three weeks: the most important events, a few reports each, in
-// the order they happened.
+// What a special is about and what it is written from. A special tells one country or region: a topic of
+// the industry pack that allows one (industry/topics.json). The candidates are those with collected
+// reports in the last two weeks, apart from the topics of the last two specials; a model judges which of
+// them makes an episode, from the brief in industry/prompts/special-pick.md, and none may. The material
+// is the chosen topic's collected reports of the last three weeks, not only the selected ones: the most
+// important events, a few reports each, in the order they happened.
 import { sql } from "../db.ts";
 import { pickRepresentative } from "../publication/representative.ts";
 import { TOPICS, type Topic } from "../publication/topics.ts";
-import { citedIn, factKeyOf, groupBy, reportEntry, topicReports, type ReportEntry, type ReportRow } from "./edition.ts";
+import { beijingDate } from "@aihot/contracts/time";
+import { factKeyOf, groupBy, reportEntry, topicReports, type ReportEntry, type ReportRow } from "./edition.ts";
 
 const DAY = 86_400_000;
-/** The days a topic's events are counted over, and the days a special is written from. */
+/** The days a topic's news counts for its candidacy, and the days a special is written from. */
 export const CHOICE_DAYS = 14;
 export const MATERIAL_DAYS = 21;
-/** A topic needs this many events in the counted days to be worth a special. */
-export const MIN_EVENTS = 5;
-/** Specials whose topics are not chosen again, and the share of a topic's reports they may already have told. */
-const RECENT_SPECIALS = 4;
-const TOLD_SHARE = 0.5;
+/** The last specials whose topics are not candidates, and how many earlier ones the judge is told about. */
+const RESTING_SPECIALS = 2;
+const REMEMBERED_SPECIALS = 12;
+/** What the judge sees: the topics with most events, and each one's latest headlines. */
+const CANDIDATES = 12;
+const HEADLINES = 12;
 /** The material: this many events, at most this many reports each. */
 const MATERIAL_EVENTS = 18;
 const PER_EVENT = 3;
@@ -27,36 +29,48 @@ export interface SpecialMaterial extends ReportEntry {
   n: number;
 }
 
-const eventOf = (r: ReportRow) => (r.story_id === null ? `f:${factKeyOf(r)}` : `s:${r.story_id}`);
-
-/** What the last specials were about and which reports they cited. */
-async function recentSpecials(before: string): Promise<Array<{ slug: string | null; cited: Set<string> }>> {
-  const rows = await sql<{ content: Record<string, any> }[]>`
-    SELECT content FROM reports WHERE kind = 'special' AND key < ${before} ORDER BY key DESC LIMIT ${RECENT_SPECIALS}`;
-  return rows.map((r) => ({
-    slug: typeof r.content.topic?.slug === "string" ? r.content.topic.slug : null,
-    cited: new Set(citedIn(r.content).map((c) => String(c.itemId ?? "")).filter(Boolean)),
-  }));
+export interface Candidate {
+  topic: Topic;
+  rows: ReportRow[];
+  events: number;
+  /** The date of the latest special about it, when there was one. */
+  told: string | null;
 }
 
-/** The topic of the special dated `date` with its end, and the reports it is written from; null when no topic has enough news. */
-export async function chooseTopic(date: string, end: Date): Promise<{ topic: Topic; rows: ReportRow[] } | null> {
-  const recent = await recentSpecials(date);
-  const told = new Set(recent.map((r) => r.slug));
+const eventOf = (r: ReportRow) => (r.story_id === null ? `f:${factKeyOf(r)}` : `s:${r.story_id}`);
+
+/**
+ * The topics a special dated `date` may be about: those with collected reports in the counted days, not
+ * the topic of one of the last two specials, most events first.
+ */
+export async function specialCandidates(date: string, end: Date): Promise<Candidate[]> {
+  const recent = await sql<{ key: string; slug: string | null }[]>`
+    SELECT key, content->'topic'->>'slug' AS slug FROM reports WHERE kind = 'special' AND key < ${date} ORDER BY key DESC LIMIT ${REMEMBERED_SPECIALS}`;
+  const resting = new Set(recent.slice(0, RESTING_SPECIALS).map((r) => r.slug));
   const start = new Date(end.getTime() - MATERIAL_DAYS * DAY);
   const counted = end.getTime() - CHOICE_DAYS * DAY;
-  const lastWeek = end.getTime() - 7 * DAY;
-  let best: { topic: Topic; rows: ReportRow[]; rank: number } | null = null;
-  for (const topic of TOPICS.filter((t) => t.special && !told.has(t.slug))) {
+  const out: Candidate[] = [];
+  for (const topic of TOPICS.filter((t) => t.special && !resting.has(t.slug))) {
     const rows = await topicReports(topic, start, end);
-    if (recent.some((r) => rows.filter((row) => r.cited.has(row.id)).length > TOLD_SHARE * rows.length)) continue;
-    const latest = [...groupBy(rows, eventOf).values()].map((members) => Math.max(...members.map((m) => m.timeline_at.getTime())));
-    const events = latest.filter((at) => at >= counted).length;
-    if (events < MIN_EVENTS) continue;
-    const rank = events + latest.filter((at) => at >= lastWeek).length;
-    if (!best || rank > best.rank) best = { topic, rows, rank };
+    const events = [...groupBy(rows, eventOf).values()].filter((members) => members.some((m) => m.timeline_at.getTime() >= counted)).length;
+    if (events > 0) out.push({ topic, rows, events, told: recent.find((r) => r.slug === topic.slug)?.key ?? null });
   }
-  return best && { topic: best.topic, rows: best.rows };
+  return out.sort((a, b) => b.events - a.events).slice(0, CANDIDATES);
+}
+
+/** The judge's list: each candidate with its events, when a special last told it, and its latest headlines. */
+export function candidateList(candidates: Candidate[], end: Date): string {
+  const counted = end.getTime() - CHOICE_DAYS * DAY;
+  return candidates.map((c) => {
+    const latest = [...groupBy(c.rows.filter((r) => r.timeline_at.getTime() >= counted), eventOf).values()]
+      .map((members) => members.reduce((a, b) => (b.timeline_at > a.timeline_at ? b : a)))
+      .sort((a, b) => b.timeline_at.getTime() - a.timeline_at.getTime())
+      .slice(0, HEADLINES);
+    return [
+      `【${c.topic.slug}｜${c.topic.name}】近两周 ${c.events} 件事；${c.told ? `${c.told} 讲过一期` : "最近没讲过"}`,
+      ...latest.map((r) => `- ${beijingDate(r.timeline_at).slice(5)} ${r.title}`),
+    ].join("\n");
+  }).join("\n\n");
 }
 
 /**
