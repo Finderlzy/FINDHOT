@@ -17,3 +17,6 @@ fontsource-noto-sans-sc-*.tgz
 
 # 本机的私有说明（服务器地址、部署结构），Claude Code 会自动读取，不提交
 CLAUDE.local.md
+
+# 本机和服务器各一份的内存上限配置（docker compose 自动读取），按部署机器调整，不提交
+docker-compose.override.yml
