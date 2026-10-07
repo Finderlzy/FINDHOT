@@ -14,7 +14,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   return adminGet<AdminSources>(request, `/api/admin/sources${url.search}`);
 }
 
-export const meta: Route.MetaFunction = () => [{ title: `信源 · ${SITE.name} 后台` }];
+export const meta: Route.MetaFunction = () => [{ title: `信源 · ${SITE.name}后台` }];
 
 export default function Sources({ loaderData }: Route.ComponentProps) {
   const { rows, totals, page } = loaderData;

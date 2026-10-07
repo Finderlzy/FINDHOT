@@ -16,7 +16,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   return adminGet<AdminModels>(request, `/api/admin/models?days=${encodeURIComponent(days)}`);
 }
 
-export const meta: Route.MetaFunction = () => [{ title: `模型与评测 · ${SITE.name} 后台` }];
+export const meta: Route.MetaFunction = () => [{ title: `模型与评测 · ${SITE.name}后台` }];
 
 const SOURCE_LABEL = { admin: "后台切换", env: "环境变量", default: "代码默认" } as const;
 

@@ -14,7 +14,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   return adminGet<AdminSelectBenchRuns>(request, "/api/admin/selectbench");
 }
 
-export const meta: Route.MetaFunction = () => [{ title: `SelectBench · ${SITE.name} 后台` }];
+export const meta: Route.MetaFunction = () => [{ title: `SelectBench · ${SITE.name}后台` }];
 
 export default function SelectBench({ loaderData }: Route.ComponentProps) {
   const { run, pending } = useAdminAction();

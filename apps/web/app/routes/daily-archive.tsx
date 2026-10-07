@@ -23,8 +23,8 @@ export async function loader({ request }: { request: Request }) {
 }
 
 export function meta({ loaderData }: { loaderData?: { index: ReportIndexEntry[] } }) {
-  const entries = (loaderData?.index ?? []).map((e: ReportIndexEntry) => ({ path: `/daily/${e.key}`, name: e.title ? `${e.key} · ${e.title}` : `${SITE.name} 日报 · ${e.key}` }));
-  return pageMeta({ title: `${withSubject("日报")} · 历史存档`, description: `${SITE.name} 历史日报，按日期归档。`, path: "/daily/archive", image: "/og/pages/daily.png", jsonLd: archiveLd("/daily/archive", `${SITE.name} 日报 · 历史存档`, entries) });
+  const entries = (loaderData?.index ?? []).map((e: ReportIndexEntry) => ({ path: `/daily/${e.key}`, name: e.title ? `${e.key} · ${e.title}` : `${SITE.name}日报 · ${e.key}` }));
+  return pageMeta({ title: `${withSubject("日报")} · 历史存档`, description: `${SITE.name}历史日报，按日期归档。`, path: "/daily/archive", image: "/og/pages/daily.png", jsonLd: archiveLd("/daily/archive", `${SITE.name}日报 · 历史存档`, entries) });
 }
 
 export function headers() {

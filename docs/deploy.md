@@ -77,6 +77,13 @@ docker compose run --rm setup && docker compose up -d
 
 下面按时间从新到旧列出每次更新要注意的事。
 
+#### 站名改为晨昏线（公开接口 6.0.0，2026 年 10 月 7 日）
+
+没有新迁移。
+
+- 站名改为「晨昏线」，图标和左上角的标志换成按地轴倾斜的昼夜地球（`scripts/icons.ts` 生成）。站名和中文相连处不再加空格。页面链接的图标改用带内容哈希的地址（`/assets/favicon-<哈希>.ico` 等），换了图标老读者也能马上看到；`/favicon.ico` 等根目录地址照旧提供。
+- 英文名统一为 terminator-line：MCP 工具名前缀改成 `terminator_line`（工具名只能用下划线），旧的 `findhot_*` 工具名不再可用，已接入的客户端要重新接入，公开接口版本因此升到 6.0.0；抓取信源的 User-Agent 改成 `terminator-line-bot/1.0`。
+
 #### 点评取消，AI 导读改为燕三式（2026 年 10 月 7 日）
 
 没有新迁移。

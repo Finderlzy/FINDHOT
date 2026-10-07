@@ -22,14 +22,14 @@ export const EDITION_WHEN = {
 
 export const SITE = {
   /** 站名：导航、页面标题、分享图、RSS、MCP、后台都用它。 */
-  name: "FindHOT",
+  name: "晨昏线",
   /**
    * 行业词：拼进默认说法里，比如“AI 日报”“AI 动态”。
    * 改成“法律”“HR”“黄金”之类，页面上就会变成“法律日报”“法律动态”。
    */
   subject: "国际",
   /** 首页的完整标题（浏览器标签、搜索结果）。 */
-  homeTitle: "FindHOT — 国际形势 · 每日精选与日报",
+  homeTitle: "晨昏线 — 国际形势 · 每日精选与日报",
   /** 主题目录页（/topics）的标题。 */
   topicsTitle: "国际主题：国家与组织、地区与议题、内容形态的最新动态",
   /** 反馈表单输入框里的示例。 */
@@ -55,15 +55,15 @@ export const SITE = {
   /** 标准图标（favicon.ico、icon.png、icon-192.png、apple-icon.png、logo.svg）以外也放在网站根目录的图标，site/brand/ 里的文件名（选填）；manifest.webmanifest 或外站引用了它们时用。 */
   rootIcons: [] as string[],
   /**
-   * MCP 工具名的前缀（小写字母、数字、下划线），工具会叫 findhot_get_latest、findhot_search……
+   * MCP 工具名的前缀（小写字母、数字、下划线），工具会叫 terminator_line_get_latest、terminator_line_search……
    * 已经有人接入后就不要再改。
    */
-  mcpPrefix: "findhot",
+  mcpPrefix: "terminator_line",
   /**
    * 公开接口（MCP、OpenAPI、llms.txt）的版本号，只升不降。
    * 改了接口里已有的字段或含义时升主版本，并在部署说明里写清。
    */
-  interfaceVersion: "5.0.0",
+  interfaceVersion: "6.0.0",
   /** 对外联系邮箱（选填）：llms.txt 和给 Agent 的使用说明里会写。 */
   contactEmail: null as string | null,
   /** 关于页底部的一行小字（选填）。 */
@@ -74,12 +74,12 @@ export const SITE = {
   github: null as string | null,
   /** 结构化数据里的网站运营者（搜索引擎用）。 */
   organization: {
-    name: "FindHOT",
+    name: "晨昏线",
     /** 创始人（选填）。 */
     founder: null as null | { name: string; alternateName?: string; jobTitle?: string; description?: string; url?: string },
   },
   /** 抓取信源时报上的名字和版本（User-Agent 里用），不要冒用别的站。 */
-  crawlerName: "FindHOTBot/1.0",
+  crawlerName: "terminator-line-bot/1.0",
 } as const;
 
 /** 使用规则和隐私说明两页（正文在 pages/ 里）。 */
@@ -136,13 +136,13 @@ interface ContactCard {
 
 /** 关于页的文案。数字（信源数、收录数、精选数、日报期数）来自站内实时统计，不用写在这里。 */
 export const ABOUT = {
-  kicker: `关于 ${SITE.name}`,
+  kicker: `关于${SITE.name}`,
   /** 页面描述（搜索结果、分享卡片）。 */
-  description: `关于 ${SITE.name}：${SITE.description}`,
+  description: `关于${SITE.name}：${SITE.description}`,
   /** 大标题：第一行正常颜色，第二行强调色。 */
   headline: ["世界每天都有新动静，", "值得看的，只有几条。"] as [string, string],
   /** 标题下面的一段话。{sources} 会换成实时的信源数（两边自动加空格，所以 {sources} 两边不写空格）；统计没取到时换成 sourcesFallback。 */
-  lead: `${SITE.name} 替你盯着{sources}个信源：抓取、归并、打分、精选，${EDITION_WHEN.daily} 出一份日报。免费，不用注册。`,
+  lead: `${SITE.name}替你盯着{sources}个信源：抓取、归并、打分、精选，${EDITION_WHEN.daily} 出一份日报。免费，不用注册。`,
   sourcesFallback: "十几",
   /** 信源河动画下面的四个环节。 */
   steps: {
@@ -164,7 +164,7 @@ export const ABOUT = {
     feishu?: ContactCard;
   },
   /** 页面底部的版权与下架说明，中间接“反馈页”的链接。 */
-  copyright: [`${SITE.name} 是聚合摘要和阅读索引，原文版权归各来源所有。如果你是来源方，希望更正、下架或调整展示方式，可以通过`, "联系我们。"] as [string, string],
+  copyright: [`${SITE.name}是聚合摘要和阅读索引，原文版权归各来源所有。如果你是来源方，希望更正、下架或调整展示方式，可以通过`, "联系我们。"] as [string, string],
   /** 页面底部“使用规则”链接的锚点 id（选填）：外部文档写死过这个锚点就填上，以后不要改。 */
   termsAnchor: null as string | null,
 } as const;
@@ -193,9 +193,9 @@ export const REPORTS = {
   motto: SITE.subject as string,
   /** 每种报告页面的描述（搜索结果、分享卡片），不带句号；llms.txt 介绍晚报、专题报时也用它。 */
   descriptions: {
-    daily: `${SITE.name} ${subjectAfter(`${EDITION_WHEN.daily}（北京时间）发布的`, "精编日报")}`,
-    evening: `${SITE.name} ${subjectAfter(`${EDITION_WHEN.evening}（北京时间）发布的`, "晚报")}，收当天白天的消息`,
-    special: `${SITE.name} 专题报：${EDITION_WHEN.special}（北京时间）挑一个最近热闹的国家或地区，把这几周的事从头讲一遍`,
+    daily: `${SITE.name}${subjectAfter(`${EDITION_WHEN.daily}（北京时间）发布的`, "精编日报")}`,
+    evening: `${SITE.name}${subjectAfter(`${EDITION_WHEN.evening}（北京时间）发布的`, "晚报")}，收当天白天的消息`,
+    special: `${SITE.name}专题报：${EDITION_WHEN.special}（北京时间）挑一个最近热闹的国家或地区，把这几周的事从头讲一遍`,
   },
   /**
    * 一期里的一条怎么称呼（“4 件大事”）：没有头条时的标题（“这一天的 4 件 AI 大事”）、报头和往期目录的条数，
@@ -243,12 +243,12 @@ export const CARDS: Record<string, { kicker: string; title: string; subtitle: st
   daily: { kicker: withSubject("日报"), title: subjectAfter(`每天 ${spokenTime(EDITION_TIMES.daily)}，一份读得完的`, "日报"), subtitle: `${subjectAfter("前一天值得关注的", "动态")}。` },
   evening: { kicker: withSubject("晚报"), title: subjectAfter(`每天 ${spokenTime(EDITION_TIMES.evening)}，白天的`, "动态"), subtitle: "日报出刊以后到晚上的新消息，下班路上看完。" },
   special: { kicker: "专题报", title: "一期只讲一个地方", subtitle: "挑一个最近热闹的国家或地区，把这几周的事串起来从头讲一遍。" },
-  about: { kicker: "关于", title: `关于 ${SITE.name}`, subtitle: SITE.description },
-  terms: { kicker: "使用规则", title: `${SITE.name} 使用规则`, subtitle: "网页、API、RSS 与 MCP 的使用范围。" },
-  privacy: { kicker: "隐私说明", title: `${SITE.name} 隐私说明`, subtitle: "访问日志、浏览器本地数据与反馈资料的处理方式。" },
-  changelog: { kicker: "更新日志", title: `${SITE.name} 更新日志`, subtitle: "功能更新、优化、公告与下线记录。" },
+  about: { kicker: "关于", title: `关于${SITE.name}`, subtitle: SITE.description },
+  terms: { kicker: "使用规则", title: `${SITE.name}使用规则`, subtitle: "网页、API、RSS 与 MCP 的使用范围。" },
+  privacy: { kicker: "隐私说明", title: `${SITE.name}隐私说明`, subtitle: "访问日志、浏览器本地数据与反馈资料的处理方式。" },
+  changelog: { kicker: "更新日志", title: `${SITE.name}更新日志`, subtitle: "功能更新、优化、公告与下线记录。" },
   feedback: { kicker: "反馈", title: "告诉我们哪里可以更好", subtitle: "内容、功能、接入，或来源方的更正与下架请求。" },
-  agent: { kicker: "Agent 接入", title: `把 ${SITE.name} 接进你的 Agent`, subtitle: "MCP、RSS、API 三种方式，匿名只读，无需 API Key。" },
+  agent: { kicker: "Agent 接入", title: `把${SITE.name}接进你的 Agent`, subtitle: "MCP、RSS、API 三种方式，匿名只读，无需 API Key。" },
 };
 
 /** 公开接口的访问约定里随部署而变的几处：给 Agent 的使用说明、llms.txt 会写。 */

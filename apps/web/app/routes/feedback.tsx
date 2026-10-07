@@ -19,7 +19,7 @@ export function headers() {
 }
 
 export function meta() {
-  return pageMeta({ title: "反馈", description: `告诉 ${SITE.name} 哪里可以做得更好：内容、功能、接入或来源方的更正与下架请求。`, path: "/feedback", image: "/og/pages/feedback.png", noindex: true });
+  return pageMeta({ title: "反馈", description: `告诉${SITE.name}哪里可以做得更好：内容、功能、接入或来源方的更正与下架请求。`, path: "/feedback", image: "/og/pages/feedback.png", noindex: true });
 }
 
 interface Draft {

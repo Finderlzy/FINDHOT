@@ -212,7 +212,7 @@ export default function AboutPage() {
 
   return (
     <div className="mx-auto max-w-[var(--page-max-reading)] pb-14 lg:pt-3">
-      <PhoneBar back={{ to: "/more", label: "我的" }} title={`关于 ${SITE.name}`} />
+      <PhoneBar back={{ to: "/more", label: "我的" }} title={`关于${SITE.name}`} />
       <header className="grid items-end gap-8 pt-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:pt-0">
         <div>
           <Kicker>{ABOUT.kicker}</Kicker>
@@ -242,7 +242,7 @@ export default function AboutPage() {
 
       <section aria-labelledby="how" className="mt-10 xl:mt-14">
         <h2 id="how" className="sr-only">
-          {`${SITE.name} 怎么工作`}
+          {`${SITE.name}怎么工作`}
         </h2>
         <SignalRiver sources={sources} focus={focus} onArrive={onArrive} className="h-[230px] sm:h-[300px] lg:h-[360px] 2xl:h-[420px]">
           <Latest item={latest[at]} className="absolute left-[75%] top-[calc(42%+42px)] hidden w-[25%] px-6 lg:block" />

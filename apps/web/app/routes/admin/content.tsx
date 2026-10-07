@@ -14,7 +14,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   return { q, rows };
 }
 
-export const meta: Route.MetaFunction = () => [{ title: `内容诊断 · ${SITE.name} 后台` }];
+export const meta: Route.MetaFunction = () => [{ title: `内容诊断 · ${SITE.name}后台` }];
 
 export default function Content({ loaderData }: Route.ComponentProps) {
   const { q, rows } = loaderData;

@@ -15,7 +15,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   return adminGet<AdminRuns>(request, "/api/admin/runs");
 }
 
-export const meta: Route.MetaFunction = () => [{ title: `运行 · ${SITE.name} 后台` }];
+export const meta: Route.MetaFunction = () => [{ title: `运行 · ${SITE.name}后台` }];
 
 const STATE_LABEL: Record<string, string> = { created: "排队", retry: "等待重试", active: "执行中" };
 

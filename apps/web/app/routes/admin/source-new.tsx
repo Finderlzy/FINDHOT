@@ -8,7 +8,7 @@ import { bj } from "../../features/admin/format";
 import { KIND_LABEL, MODE_LABEL, TIER_LABEL } from "../../features/admin/labels";
 import { AdminPage, Button, Card, Empty, Field, Input, Select, Textarea } from "../../features/admin/ui";
 
-export const meta: Route.MetaFunction = () => [{ title: `新建信源 · ${SITE.name} 后台` }];
+export const meta: Route.MetaFunction = () => [{ title: `新建信源 · ${SITE.name}后台` }];
 
 const TEMPLATES: Record<string, Record<string, unknown>> = {
   rss: { feedUrl: "https://example.com/feed.xml" },

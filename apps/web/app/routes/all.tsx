@@ -46,7 +46,7 @@ export function meta({ loaderData }: Route.MetaArgs) {
   const path = listPath("/all", { ...(f && filterParams(f)), q, tab: f?.tab === "relevance" ? "relevance" : null, page: page > 1 ? page : null });
   return pageMeta({
     title: q ? `搜索：${q}` : ALL_TITLE,
-    description: `${SITE.name} 收录的${subjectAfter("全部", "相关动态")}，可按频道、类别与标签筛选，支持中英文搜索。`,
+    description: `${SITE.name}收录的${subjectAfter("全部", "相关动态")}，可按频道、类别与标签筛选，支持中英文搜索。`,
     path,
     noindex: !!q,
     jsonLd: q ? undefined : itemListLd(path, ALL_TITLE, loaderData?.data.items.map((i) => i.title) ?? []),

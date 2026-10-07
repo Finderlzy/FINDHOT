@@ -18,7 +18,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 // Counts follow every navigation and command; the identity does not change.
 export const shouldRevalidate: ShouldRevalidateFunction = () => true;
 
-export const meta: Route.MetaFunction = () => [{ title: `${SITE.name} 后台` }, { name: "robots", content: "noindex, nofollow" }];
+export const meta: Route.MetaFunction = () => [{ title: `${SITE.name}后台` }, { name: "robots", content: "noindex, nofollow" }];
 
 export const headers: Route.HeadersFunction = () => ({ "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow" });
 
@@ -74,7 +74,7 @@ export default function AdminLayout({ loaderData }: Route.ComponentProps) {
       <aside className="sticky top-0 hidden h-dvh w-[216px] shrink-0 flex-col border-r border-line bg-bg-sunk/50 px-3 py-4 lg:flex">
         <a href="/" className="mb-5 flex items-center gap-2 px-2">
           <RingMark className="size-6 text-accent" />
-          <span className="text-[15px] font-semibold tracking-tight text-ink">{`${SITE.name} 后台`}</span>
+          <span className="text-[15px] font-semibold tracking-tight text-ink">{`${SITE.name}后台`}</span>
         </a>
         <nav className="scrollbar-thin flex-1 space-y-4 overflow-y-auto">
           {groups.map((g) => (
@@ -102,7 +102,7 @@ export default function AdminLayout({ loaderData }: Route.ComponentProps) {
         <div className="sticky top-0 z-40 border-b border-line bg-bg/85 backdrop-blur lg:hidden">
           <div className="flex items-center gap-2 px-4 pt-3">
             <RingMark className="size-5 text-accent" />
-            <span className="text-[14px] font-semibold text-ink">{`${SITE.name} 后台`}</span>
+            <span className="text-[14px] font-semibold text-ink">{`${SITE.name}后台`}</span>
             {me.dev && <span className="rounded bg-amber/15 px-1.5 text-[11px] font-medium text-amber">开发</span>}
           </div>
           <nav className="no-scrollbar flex gap-1 overflow-x-auto px-3 py-2">

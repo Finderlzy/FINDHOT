@@ -5,6 +5,10 @@ import {
 import type { SiteMeta } from "@aihot/contracts/site";
 import { SITE } from "@aihot/site";
 import { RingMark } from "@aihot/site/brand/Logo.tsx";
+// The icons the pages link to, at hashed addresses: a new icon gets a new address, so browsers drop the cached one.
+import favicon from "@aihot/site/brand/favicon.ico?url&no-inline";
+import icon from "@aihot/site/brand/icon.png?url&no-inline";
+import appleIcon from "@aihot/site/brand/apple-icon.png?url&no-inline";
 import { useEffect, useState, type ReactNode } from "react";
 import type { Route } from "./+types/root";
 import "./app.css";
@@ -22,9 +26,9 @@ import { titled } from "./lib/seo";
 import { webModules } from "./site-modules";
 
 export const links: Route.LinksFunction = () => [
-  { rel: "icon", href: "/favicon.ico", sizes: "any" },
-  { rel: "icon", type: "image/png", href: "/icon.png" },
-  { rel: "apple-touch-icon", href: "/apple-icon.png" },
+  { rel: "icon", href: favicon, sizes: "any" },
+  { rel: "icon", type: "image/png", href: icon },
+  { rel: "apple-touch-icon", href: appleIcon },
   { rel: "manifest", href: "/manifest.webmanifest" },
   { rel: "alternate", type: "application/rss+xml", title: `${SITE.name} — 精选`, href: "/feed.xml" },
 ];

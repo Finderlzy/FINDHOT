@@ -13,7 +13,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   return adminGet<AdminSettings>(request, "/api/admin/settings");
 }
 
-export const meta: Route.MetaFunction = () => [{ title: `设置 · ${SITE.name} 后台` }];
+export const meta: Route.MetaFunction = () => [{ title: `设置 · ${SITE.name}后台` }];
 
 function QrSlot({ slot, label, src }: { slot: "wechatQr" | "feishuQr"; label: string; src: string | null }) {
   const { run, pending } = useAdminAction();

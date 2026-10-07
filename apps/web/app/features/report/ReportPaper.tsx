@@ -411,7 +411,7 @@ function History({ report, index }: { report: ReportDetail; index: ReportNavigat
           <li key={e.key}>
             <Link to={reportPath(report.kind, e.key)} className="group flex items-baseline gap-4 border-b border-line py-3">
               <span className="num w-[76px] shrink-0 text-[12.5px] text-ink-4">{e.key}</span>
-              <span className="min-w-0 flex-1 truncate text-[14px] text-ink-2 transition-colors group-hover:text-accent">{e.title ?? `${SITE.name} ${KIND_LABEL[report.kind]} · ${e.key}`}</span>
+              <span className="min-w-0 flex-1 truncate text-[14px] text-ink-2 transition-colors group-hover:text-accent">{e.title ?? `${SITE.name}${KIND_LABEL[report.kind]} · ${e.key}`}</span>
             </Link>
           </li>
         ))}
@@ -592,7 +592,7 @@ export function ReportPaper({ report, index }: { report: ReportDetail; index: Re
       <footer className="py-10 text-center">
         <div className="text-[13px] font-semibold tracking-[0.6em] text-ink-4">（本期完）</div>
         <p className="mt-3 text-[12px] text-ink-4">
-          {`${SITE.name} `}{KIND_LABEL[report.kind]}{special ? "由模型根据公开报道撰写，事实以每章引用的原文为准" : "由编辑系统根据公开来源自动编辑，每条均附原文"} ·{" "}
+          {SITE.name}{KIND_LABEL[report.kind]}{special ? "由模型根据公开报道撰写，事实以每章引用的原文为准" : "由编辑系统根据公开来源自动编辑，每条均附原文"} ·{" "}
           <Link to={daily ? "/daily/archive" : "#report-history"} viewTransition={daily} className="font-medium text-ink-3 transition-colors hover:text-accent">
             {daily ? "日报合订本" : `往期${KIND_LABEL[report.kind]}`}
           </Link>

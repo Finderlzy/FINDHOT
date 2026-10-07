@@ -15,7 +15,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   return adminGet<AdminFeedback>(request, `/api/admin/feedback${new URL(request.url).search}`);
 }
 
-export const meta: Route.MetaFunction = () => [{ title: `反馈 · ${SITE.name} 后台` }];
+export const meta: Route.MetaFunction = () => [{ title: `反馈 · ${SITE.name}后台` }];
 
 const TONE: Record<string, "accent" | "warn" | "ok" | "muted"> = { new: "accent", triaged: "warn", replied: "ok", resolved: "ok", spam: "muted" };
 

@@ -39,7 +39,7 @@ function card(r: Row) {
       {
         tag: "action",
         actions: [
-          { tag: "button", text: { tag: "plain_text", content: `${SITE.name} 查看` }, url: itemUrl(r.article_id), type: "primary" },
+          { tag: "button", text: { tag: "plain_text", content: `在${SITE.name}查看` }, url: itemUrl(r.article_id), type: "primary" },
           { tag: "button", text: { tag: "plain_text", content: "原文" }, url: r.url, type: "default" },
         ],
       },

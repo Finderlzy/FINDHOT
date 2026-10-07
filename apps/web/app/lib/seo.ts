@@ -232,7 +232,7 @@ const REPORT_NAME = { daily: "日报", evening: "晚报", special: "专题报" }
 export function reportLd(r: ReportDetail, path: string, description: string) {
   return articleLd({
     path,
-    headline: r.kind === "special" ? r.title : `${SITE.name} ${REPORT_NAME[r.kind]} · ${r.key}`,
+    headline: r.kind === "special" ? r.title : `${SITE.name}${REPORT_NAME[r.kind]} · ${r.key}`,
     description,
     publishedAt: r.generatedAt,
     section: r.sections.map((s) => s.label),
