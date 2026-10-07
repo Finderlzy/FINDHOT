@@ -2,7 +2,7 @@
 // ability. Agents only fetch these addresses and relay what comes back, so which data answers a
 // question, how it reads and what to tell the user are decided here, on the server. Programs keep
 // reading the v1 JSON, whose fields do not change.
-import { ACCESS, EDITION_WHEN, ITEM_COPY, POLICY, SITE, subjectAfter } from "@aihot/site";
+import { ACCESS, EDITION_WHEN, POLICY, SITE, subjectAfter } from "@aihot/site";
 import { CATEGORIES } from "@aihot/industry/taxonomy";
 import { MCP_TOOL_NAMES as T } from "@aihot/contracts/mcp";
 import { CATEGORY_LABELS, isCategoryKey, PUBLIC_API_CATEGORY_KEYS, toPublicApiCategory, type PublicApiCategoryKey } from "@aihot/contracts/taxonomy";
@@ -46,7 +46,6 @@ function itemLines(items: V1ItemPayload[]): string[] {
     `${i + 1}. [${linkText(it.title)}](${it.links.aihot})`,
     `   ${[publicSourceName(it.source.name), it.publishedAt ? `发布于 ${stamp(it.publishedAt)}` : `${SITE.name} 收录于 ${stamp(it.discoveredAt)}`, category(it.category)].filter(Boolean).join(" · ")}`,
     ...(it.summary ? [`   摘要：${it.summary}`] : []),
-    ...(it.reason ? [`   ${ITEM_COPY.reasonLabel}：${it.reason}`] : []),
     `   原文：${it.links.original}`,
     "",
   ]);
@@ -54,7 +53,7 @@ function itemLines(items: V1ItemPayload[]): string[] {
 
 const BRIEF_HINTS = [
   "先用一两句话概括，再挑最重要的 3–8 条（用户要全部就全列）；保持上面的先后顺序，不要自己排成榜单。",
-  `每条：标题链接到 ${SITE.name}；写来源和北京时间；用一两句人话讲清楚是什么。有${ITEM_COPY.reasonLabel}就用它说明为什么值得关注，没有就不要编。`,
+  `每条：标题链接到 ${SITE.name}；写来源和北京时间；用一两句人话讲清楚是什么。`,
   "只根据上面的内容回答，不要用训练记忆补成“最新消息”；用户要出处时再给原文链接。",
   NO_INTERNALS,
 ];

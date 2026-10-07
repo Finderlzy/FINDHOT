@@ -117,8 +117,10 @@ export const POLICY = {
 
 /** 条目卡片和详情页上的几处说法和显示。 */
 export const ITEM_COPY = {
-  /** 模型写的那句理由叫什么：卡片、详情页、Markdown 导出、给 Agent 的回答和群推送都用它。 */
-  reasonLabel: "点评",
+  /** 精选稿上模型写的那段（reason）。2026-10 起是文章页的燕三式导读，150–250 字，在文章页替换摘要；更早的稿件存的是 90 字以内的一句点评，照旧排在摘要后面。按长度区分两者。 */
+  reasonLabel: "AI 导读",
+  commentLabel: "点评",
+  guideMinLength: 120,
   /** 读者在网页和分享图上看不看得到 AI 评分。只管显示：公开 API 和 MCP 的数据照样带 score，后台照常显示。 */
   showScore: true,
 };

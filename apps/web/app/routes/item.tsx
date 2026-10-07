@@ -169,10 +169,17 @@ export default function ItemPage() {
   );
 }
 
+/** A selected report's guide replaces the summary; an older report's one-line comment follows it, as it used to. */
+function readerNotes(reason: string | null | undefined) {
+  if (!reason) return { guide: null, comment: null };
+  return reason.length >= ITEM_COPY.guideMinLength ? { guide: reason, comment: null } : { guide: null, comment: reason };
+}
+
 /** Phones, while the article loads: what the card showed, in the article's own places. */
 function ItemPreview({ preview }: { preview: FeedItemSummary }) {
   const [toast, setToast] = useToast();
   const isX = preview.channel === "x" && !!preview.x;
+  const { guide, comment } = readerNotes(preview.reason);
   // Without a reliable date from the original, the card's time is when it was collected, and says so.
   const shownAt = preview.publishedAt ?? preview.timelineAt;
   return (
@@ -196,13 +203,13 @@ function ItemPreview({ preview }: { preview: FeedItemSummary }) {
         {preview.summary && (
           <section className={isX ? "mt-4" : "mt-7"}>
             <div className="mb-2 text-[12px] font-semibold text-accent">AI 导读</div>
-            <p className="text-[18px] leading-[1.7] text-ink">{preview.summary}</p>
+            <p className="text-[18px] leading-[1.7] text-ink">{guide ?? preview.summary}</p>
           </section>
         )}
-        {preview.reason && (
+        {comment && (
           <section className="mt-6 border-t border-line pt-4">
-            <div className="mb-1 text-[12px] font-semibold text-ink-3">{ITEM_COPY.reasonLabel}</div>
-            <p className="text-[15px] leading-[1.75] text-ink-2">{preview.reason}</p>
+            <div className="mb-1 text-[12px] font-semibold text-ink-3">{ITEM_COPY.commentLabel}</div>
+            <p className="text-[15px] leading-[1.75] text-ink-2">{comment}</p>
           </section>
         )}
         <div className="mt-9 space-y-3 border-t border-line pt-6" aria-hidden="true">
@@ -289,6 +296,7 @@ function ItemView({ item }: { item: SiteItemDetail }) {
   const shownAt = item.publishedAt ?? item.discoveredAt;
   const timeLabel = item.publishedAt ? "发布时间" : "收录时间";
   const summaryOnly = item.readingMode === "summary-only";
+  const { guide, comment } = summaryOnly ? { guide: null, comment: null } : readerNotes(item.reason);
   const showOutline = item.outline.length >= 3;
   const originalLabel = isX ? "在 X 查看原推" : "打开原文";
 
@@ -388,10 +396,10 @@ function ItemView({ item }: { item: SiteItemDetail }) {
   );
   const notes = (
     <>
-      {item.reason && !summaryOnly ? (
-        <RailSection title={ITEM_COPY.reasonLabel}>
+      {comment ? (
+        <RailSection title={ITEM_COPY.commentLabel}>
           {verdict && <div className="mb-3">{verdict}</div>}
-          <p className="text-[13.5px] leading-[1.8] text-ink-2">{item.reason}</p>
+          <p className="text-[13.5px] leading-[1.8] text-ink-2">{comment}</p>
         </RailSection>
       ) : (
         verdict && <RailSection title={shownScore(item.score) !== null ? "AI 评分" : undefined}>{verdict}</RailSection>
@@ -481,14 +489,14 @@ function ItemView({ item }: { item: SiteItemDetail }) {
           {item.summary && (
             <section className={isX ? "mt-4" : "mt-7 xl:mt-8"}>
               <div className="mb-2 text-[12px] font-semibold text-accent">{summaryOnly ? "摘要" : "AI 导读"}</div>
-              <p className="text-[18px] leading-[1.7] text-ink xl:text-[20px] xl:leading-[1.7]">{item.summary}</p>
+              <p className="text-[18px] leading-[1.7] text-ink xl:text-[20px] xl:leading-[1.7]">{guide ?? item.summary}</p>
             </section>
           )}
 
-          {item.reason && !summaryOnly && (
+          {comment && (
             <section className="mt-6 border-t border-line pt-4 lg:hidden">
-              <div className="mb-1 text-[12px] font-semibold text-ink-3">{ITEM_COPY.reasonLabel}</div>
-              <p className="text-[15px] leading-[1.75] text-ink-2">{item.reason}</p>
+              <div className="mb-1 text-[12px] font-semibold text-ink-3">{ITEM_COPY.commentLabel}</div>
+              <p className="text-[15px] leading-[1.75] text-ink-2">{comment}</p>
             </section>
           )}
 
