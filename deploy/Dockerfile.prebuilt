@@ -1,0 +1,36 @@
+# 晨昏线线上用的镜像：前端在本机构建好（deploy/pack.sh），随代码一起上传，服务器上不再编译前端。
+# 那台 1 GB 内存的服务器一编译前端就把内存吃光、连 SSH 一起断掉。除了这一步，其余和仓库根目录的 Dockerfile 一样，
+# 根目录的 Dockerfile 改了也要照着改这里。服务器上的 docker-compose.override.yml 让各服务用这个文件构建。
+# One image for every role: setup (migrations and seed), api, worker and web.
+# Build arg NPM_REGISTRY switches the npm registry (e.g. https://registry.npmmirror.com in mainland China).
+FROM node:24-trixie-slim AS base
+WORKDIR /app
+# pg_dump for the optional database backups (Debian's client matches the PostgreSQL 17 server in compose).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends postgresql-client ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+FROM base AS build
+ARG NPM_REGISTRY=
+COPY package.json package-lock.json ./
+COPY apps/api/package.json apps/api/
+COPY apps/web/package.json apps/web/
+COPY apps/worker/package.json apps/worker/
+COPY packages/backend/package.json packages/backend/
+COPY packages/contracts/package.json packages/contracts/
+COPY industry/package.json industry/
+COPY site/package.json site/
+COPY modules/cn-media/package.json modules/cn-media/
+RUN npm ci --no-audit --no-fund ${NPM_REGISTRY:+--registry=$NPM_REGISTRY}
+COPY . .
+# The web build comes from the upload (deploy/pack.sh); stop here when it is missing rather than ship a site without pages.
+RUN test -f apps/web/build/server/index.js || { echo "apps/web/build is missing: run deploy/pack.sh on your computer"; exit 1; } \
+ && npm prune --omit=dev --no-audit --no-fund
+
+FROM base
+ENV NODE_ENV=production
+COPY --from=build --chown=node:node /app /app
+RUN mkdir -p /data && chown node:node /data
+USER node
+EXPOSE 3000
+CMD ["node", "apps/web/server.ts"]

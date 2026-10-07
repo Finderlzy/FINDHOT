@@ -1,0 +1,11 @@
+# 和 .dockerignore 一样，只是放行本机构建好的 apps/web/build。
+node_modules
+apps/web/node_modules
+apps/web/.react-router
+.data
+.env
+.env.*
+!.env.example
+.git
+.github
+*.log

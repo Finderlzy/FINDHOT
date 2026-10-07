@@ -80,7 +80,7 @@ docker compose up -d --build
 
 想改成别的主题，站名、文案和品牌在 [`site/`](site/)，分类、主题、信源和提示词在 [`industry/`](industry/)。步骤见 [把它改成你的主题](docs/customize.md)，部署到服务器见 [部署](docs/deploy.md)。
 
-提醒一句：在 1 GB 内存的服务器上构建前端会很吃力，构建时先把 api、web、worker 停掉，腾出内存。
+提醒一句：在 1 GB 内存的服务器上编译前端会把内存吃光。晨昏线的做法是用 [`deploy/pack.sh`](deploy/pack.sh) 在自己电脑上编译好再上传，服务器用 [`deploy/Dockerfile.prebuilt`](deploy/Dockerfile.prebuilt) 打包，不再编译前端。
 
 ## 文档
 
