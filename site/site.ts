@@ -29,7 +29,7 @@ export const SITE = {
    */
   subject: "国际",
   /** 首页的完整标题（浏览器标签、搜索结果）。 */
-  homeTitle: "晨昏线 — 国际形势 · 每日精选与日报",
+  homeTitle: "晨昏线 — 国际形势 · 日报、晚报与专题报",
   /** 主题目录页（/topics）的标题。 */
   topicsTitle: "国际主题：国家与组织、地区与议题、内容形态的最新动态",
   /** 反馈表单输入框里的示例。 */
@@ -39,7 +39,7 @@ export const SITE = {
   /** 反馈表单邮箱框里的提示。 */
   feedbackEmailHint: "留下邮箱，我们可以回信联系你",
   /** 一句话介绍：搜索引擎、分享卡片、RSS、llms.txt 会用。 */
-  description: `从一批国际媒体里挑出值得看的国际新闻，把同一件事的多篇报道归到一起，${EDITION_WHEN.daily} 出一份日报。`,
+  description: `从一批国际媒体里挑出值得看的国际新闻，把同一件事的多篇报道归到一起。每天早上 ${EDITION_TIMES.daily} 出日报、晚上 ${EDITION_TIMES.evening} 出晚报；${EDITION_WHEN.special} 有合适的选题就出一期专题报，讲透一个国家或地区。`,
   /** llms.txt 里一句话介绍下面的一段详细介绍（选填）。 */
   llmsIntro: null as string | null,
   /** 一行小字：分享图、海报下方。 */
@@ -142,7 +142,7 @@ export const ABOUT = {
   /** 大标题：第一行正常颜色，第二行强调色。 */
   headline: ["世界每天都有新动静，", "值得看的，只有几条。"] as [string, string],
   /** 标题下面的一段话。{sources} 会换成实时的信源数（两边自动加空格，所以 {sources} 两边不写空格）；统计没取到时换成 sourcesFallback。 */
-  lead: `${SITE.name}替你盯着{sources}个信源：抓取、归并、打分、精选，${EDITION_WHEN.daily} 出一份日报。免费，不用注册。`,
+  lead: `${SITE.name}替你盯着{sources}个信源：抓取、归并、打分、精选，每天早上 ${EDITION_TIMES.daily} 出日报、晚上 ${EDITION_TIMES.evening} 出晚报。免费，不用注册。`,
   sourcesFallback: "十几",
   /** 信源河动画下面的四个环节。 */
   steps: {
