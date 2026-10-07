@@ -108,22 +108,17 @@ test('daily, evening and special citations share the public list release boundar
   }
 });
 
-test('daily citations without frozen summaries use the same current metadata in JSON and website', async () => {
+test('a daily citation without a frozen summary, and a flash with an earlier frozen date, read the same in JSON and website', async () => {
   const entry = await citation('Older report citation');
+  const flash = await citation('Flash date');
   const key = '2096-01-04';
   const { summary: _, ...old } = entry;
-  await issue('daily', key, { sections: [{ label: 'News', items: [old] }], flashes: [{ ...old, publishedAt: '2020-01-01T00:00:00Z' }] });
+  await issue('daily', key, { sections: [{ label: 'News', items: [old] }], flashes: [{ ...flash, publishedAt: '2020-01-01T00:00:00Z' }] });
   const site = (await loadReport('daily', key))!;
   const v1 = (await v1Daily('daily', key))!.report;
+  assert.equal(site.sections[0]!.items[0]!.summary, `${entry.title} current summary`, 'the current public summary fills the gap');
   assert.equal(v1.sections[0]!.items[0]!.summary, site.sections[0]!.items[0]!.summary);
-});
-
-test('daily flashes use the same publication time in JSON and website', async () => {
-  const entry = await citation('Flash date');
-  const key = '2096-01-05';
-  await issue('daily', key, { sections: [], flashes: [{ ...entry, publishedAt: '2020-01-01T00:00:00Z' }] });
-  const site = (await loadReport('daily', key))!;
-  const v1 = (await v1Daily('daily', key))!.report;
+  assert.equal(new Date(site.flashes[0]!.publishedAt!).toISOString(), generatedAt.toISOString(), 'the corrected publication date');
   assert.equal(v1.flashes[0]!.publishedAt, site.flashes[0]!.publishedAt);
 });
 
@@ -168,6 +163,8 @@ for (const [kind, key] of [['daily', '2096-01-06'], ['evening', '2096-01-06'], [
     await issue(kind, key, kind === 'special' ? { headline: 'H', themes: [{ heading: 'News', paragraphs: ['P'], storyRefs: [old] }] } : { sections: [{ label: 'News', items: [old] }] });
     const site = (await loadReport(kind, key))!.sections[0]!.items[0]!;
     const v1 = (kind === 'special' ? (await v1Special(key))!.report : (await v1Daily(kind, key))!.report).sections[0]!.items[0]!;
+    assert.equal(site.sourceUrl, original);
+    assert.equal(site.sourceName, 'Historical source');
     assert.equal(v1.links.original, site.sourceUrl);
     assert.equal(v1.source.name, site.sourceName);
     if ('publishedAt' in v1) assert.equal(v1.publishedAt, site.publishedAt);

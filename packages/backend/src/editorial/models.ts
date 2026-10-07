@@ -8,11 +8,13 @@ import { serverModules } from "../modules.ts";
 import { MODELS } from "../providers/llm.ts";
 
 export interface Capability {
+  /** The step's name on the admin page, with an explanation in full-width brackets if it needs one; alerts use the name alone. */
   label: string;
   env: string;
   default: string;
   /** Receipt purposes this capability produces (for the admin statistics). */
   purposes: string[];
+  /** The step needs a model that reads images. */
   vision?: boolean;
 }
 
@@ -39,6 +41,13 @@ export function capabilities(): Record<string, Capability> {
   return all;
 }
 
+/** Names of the steps whose default model belongs to a service: what stops when that service refuses us. */
+export function stepsOnService(service: string): string[] {
+  return Object.values(capabilities())
+    .filter((c) => MODELS[c.default]?.service === service)
+    .map((c) => c.label.split("（")[0]!);
+}
+
 let cache: { at: number; overrides: Record<string, string> } | null = null;
 
 async function overrides(): Promise<Record<string, string>> {
@@ -52,6 +61,16 @@ async function overrides(): Promise<Record<string, string>> {
 
 export function invalidateModelCache() {
   cache = null;
+}
+
+/** Whether a registered model explicitly declares image input support. Unspecified means text-only. */
+export function modelSupportsVision(model: string): boolean {
+  return MODELS[model]?.vision === true;
+}
+
+/** Whether a step can use a registered model. A model that reads images writes text as well. */
+export function capabilityAcceptsModel(capability: Capability, model: { vision?: boolean }): boolean {
+  return !capability.vision || model.vision === true;
 }
 
 /** The model a capability uses now: admin switch, else environment, else the code default. */

@@ -44,7 +44,6 @@ before(async () => {
   special = [day(0), day(60), day(400)];
 });
 after(async () => {
-  await sql`DELETE FROM reports WHERE content->>'fixtureTag' = ${T}`;
   await app.close();
   await closeDb();
 });

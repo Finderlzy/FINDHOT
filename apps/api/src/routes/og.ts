@@ -81,13 +81,15 @@ export function registerOg(app: FastifyInstance) {
     if (!isReportKind(kind) || !file.endsWith(".png")) return notFound(reply);
     const r = await loadReport(kind, file.slice(0, -4));
     if (!r) return notFound(reply);
+    const count = r.sections.reduce((n, s) => n + s.items.length, 0);
     return send(req, reply, {
       kicker: r.topic ? `专题报 · ${r.topic.name}` : `${withSubject(REPORT_NAME[r.kind])} · ${r.key}`,
       title: r.lead?.title ?? r.title,
       subtitle: r.lead?.leadParagraph ?? r.overview,
+      // A quiet day's issue (REPORTS.quiet) has nothing to count.
       meta: r.kind === "special"
         ? `${r.metrics.reportsCited ?? 0} ${REPORTS.metricUnits.reportsCited} · 约 ${r.readingMinutes} 分钟读完`
-        : `${r.sections.reduce((n, s) => n + s.items.length, 0)} ${REPORTS.shareUnit} · 约 ${r.readingMinutes} 分钟读完`,
+        : count > 0 ? `${count} ${REPORTS.shareUnit} · 约 ${r.readingMinutes} 分钟读完` : null,
     }, 3600, CONTENT_IMAGE_CACHE);
   });
 

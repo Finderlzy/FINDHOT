@@ -5,7 +5,7 @@
 // (industry/prompts/special-pick.md) and another writes the article (report-special.md), and what it
 // writes beyond its material is not printed, apart from marked background without figures.
 import { z } from "zod";
-import { EDITION_TIMES, SITE, SPECIAL_DAYS } from "@aihot/site";
+import { EDITION_TIMES, REPORTS, SITE, SPECIAL_DAYS } from "@aihot/site";
 import { PLAIN_TERMS, RELEASE } from "@aihot/industry/taxonomy";
 import type { ReportKind } from "@aihot/contracts/site";
 import { promptText, promptVersion } from "../editorial/prompts.ts";
@@ -75,6 +75,12 @@ async function saveReport(kind: ReportKind, key: string, start: Date, end: Date,
   });
 }
 
+/** "10 月 4 日 08:00": one end of a quiet issue's window, as its lead paragraph names it. */
+function windowPoint(at: Date): string {
+  const day = beijingDate(at);
+  return `${Number(day.slice(5, 7))} 月 ${Number(day.slice(8, 10))} 日 ${beijingTime(at)}`;
+}
+
 /**
  * The half day an issue dated D covers: a daily from the evening's edition time the day before to its own
  * edition time on D, an evening from the daily's edition time on D to its own (EDITION_TIMES).
@@ -85,20 +91,26 @@ export function editionWindow(kind: EditionKind, date: string): { start: Date; e
     : { start: beijingAt(date, EDITION_TIMES.daily), end: beijingAt(date, EDITION_TIMES.evening) };
 }
 
-/** A daily or evening for Beijing date D: its most important entry leads, in its own words, and the next three are its highlights. */
+/**
+ * A daily or evening for Beijing date D: its most important entry leads, in its own words, and the next three
+ * are its highlights. A window the editors judged with nothing new in it still has its issue: no entries, and
+ * a lead that says so (REPORTS.quiet).
+ */
 async function composeEdition(kind: EditionKind, date: string, reason?: string): Promise<{ key: string; entries: number }> {
   const previous = await savedReport(kind, date);
   if (previous && reason === undefined) return { key: date, entries: previous.entries };
   const { start, end } = editionWindow(kind, date);
   const edition = await dailyEdition(kind, date, start, end);
-  // An issue with nothing in it is a failure upstream, not a report: the run fails and is caught up later.
-  if (edition.entries.length === 0) throw new Error(`${kind} ${date}: no selected items in its window`);
+  // Nothing judged in the window is a failure upstream, not a quiet half day: the run fails and is caught up later.
+  if (edition.entries.length === 0 && edition.stats.judgedReports === 0) throw new Error(`${kind} ${date}: nothing judged in its window`);
   const issue = arrangeDaily(edition.entries);
-  const [lead, ...rest] = issue.main as [EditionEntry, ...EditionEntry[]];
+  const [lead, ...rest] = issue.main;
   const content = {
     date,
-    lead: { title: lead.entry.title, leadParagraph: lead.entry.summary },
-    leadItemId: lead.entry.itemId,
+    lead: lead
+      ? { title: lead.entry.title, leadParagraph: lead.entry.summary }
+      : { title: REPORTS.quiet.title, leadParagraph: REPORTS.quiet.paragraph.replace("{start}", windowPoint(start)).replace("{end}", windowPoint(end)) },
+    leadItemId: lead?.entry.itemId ?? null,
     highlights: rest.slice(0, 3).map((e) => e.entry.itemId),
     sections: SECTION_ORDER
       .map((label) => ({ label, items: issue.main.filter((e) => sectionOf(e.category) === label).map((e) => e.entry) }))

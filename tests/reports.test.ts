@@ -1,9 +1,9 @@
 // Reports: a scheduled run that starts late still writes the issue it was due for, never one whose
 // window is still open; a daily and an evening split the day without a gap or an overlap; an issue
-// with nothing in it is refused rather than published empty; a special prints only what its material
-// names, apart from one marked background paragraph a chapter without figures or quotations, and drops
-// a chapter's text once a report it cites is withdrawn; and a special that froze no
-// summaries shows the cited articles' public summaries.
+// whose window nothing was judged in is refused rather than published as a quiet half day; a special
+// prints only what its material names, apart from one marked background paragraph a chapter without
+// figures or quotations, and drops a chapter's text once a report it cites is withdrawn; and a special
+// that froze no summaries shows the cited articles' public summaries.
 import { editionAt, tag } from "./setup.ts";
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
@@ -43,10 +43,10 @@ test("a daily and an evening cover the day in two halves, back to back", () => {
   assert.equal(evening.end.getTime(), editionAt("evening", "2026-09-29").getTime());
 });
 
-test("an issue with nothing in its window is refused, not published empty", async () => {
+test("an issue with nothing judged in its window is refused, not published as a quiet half day", async () => {
   const date = "2098-01-15";
-  await assert.rejects(composeDaily(date), /no selected items/);
-  await assert.rejects(composeEvening(date), /no selected items/);
+  await assert.rejects(composeDaily(date), /nothing judged/);
+  await assert.rejects(composeEvening(date), /nothing judged/);
   const [row] = await sql`SELECT 1 FROM reports WHERE kind IN ('daily', 'evening') AND key = ${date}`;
   assert.equal(row, undefined);
 });
